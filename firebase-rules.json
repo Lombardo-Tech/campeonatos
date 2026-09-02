@@ -1,0 +1,18 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": false,
+    "equipos": {
+      ".write": "auth != null"
+    },
+    "partidos": {
+      ".write": "auth != null"
+    },
+    "eventos": {
+      ".write": "auth != null"
+    },
+    "configuracion": {
+      ".write": "auth != null"
+    }
+  }
+}

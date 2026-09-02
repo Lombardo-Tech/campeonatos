@@ -1,0 +1,8 @@
+V8 - ACTUALIZACION PARCIAL DE HORARIOS
+
+- Al guardar la hora de un partido ya NO se vuelve a renderizar toda la pantalla.
+- Solo se reconstruye la jornada (FECHA) que contiene el partido editado.
+- Se conserva abierta/cerrada la jornada que estaba trabajando.
+- Se actualiza el estado local inmediatamente y luego Firebase.
+- La programación de las demás fechas no se toca visualmente.
+- La actualización de la fecha de una jornada también reemplaza únicamente esa jornada.

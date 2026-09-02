@@ -1,0 +1,29 @@
+CAMPEONATO INSTITUCIONAL | EMPRESARIAL 2026 - V7
+
+FORMATO IMPLEMENTADO / DEFINIDO
+
+1. FASE DE GRUPOS
+- Grupo A y Grupo B juegan todos contra todos.
+- Con 8 equipos: 7 partidos por equipo.
+- Con cantidad impar: se asignan descansos (bye) automáticamente.
+- El calendario debe proteger resultados ya finalizados.
+
+2. AL FINALIZAR LA FASE DE GRUPOS
+- 9 equipos: se elimina automáticamente el último de la tabla.
+- 10 equipos: se eliminan automáticamente los dos últimos de la tabla.
+- El objetivo es llegar a 8 equipos por grupo.
+
+3. FASE ELIMINATORIA DE CADA GRUPO
+- Con 8 equipos: sorteo de 4 parejas.
+- Esta única ronda de 8 equipos se juega ida y vuelta.
+- Los 4 ganadores pasan a la siguiente ronda.
+- Con 4 equipos: nuevo sorteo de 2 parejas; un solo partido.
+- Los 2 ganadores disputan un solo partido.
+- El ganador es Campeón del Grupo.
+
+4. FINAL
+- Campeón del Grupo A vs Campeón del Grupo B.
+- El formato de la final queda pendiente de confirmar si no se ha definido oficialmente.
+
+NOTA:
+La V7 prepara la estructura del proyecto para este formato. No se deben inventar reglas adicionales de desempate o formato de la final sin confirmación.

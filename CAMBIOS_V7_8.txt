@@ -1,0 +1,6 @@
+V7.8
+- El número visible de cada partido en Programación de jornadas es secuencial dentro de su propia fecha.
+- Cada jornada comienza en Partido 1.
+- Si no hay hora asignada, se conserva el orden original.
+- Cuando se asignan horas, los partidos con hora se ordenan cronológicamente dentro de esa jornada.
+- No se modifica el ID real del partido en Firebase.
