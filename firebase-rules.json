@@ -2,17 +2,31 @@
   "rules": {
     ".read": true,
     ".write": false,
+    "globalAdmins": {
+      ".write": "auth != null && root.child('globalAdmins').child(auth.uid).val() == true"
+    },
+    "tournaments": {
+      ".write": "auth != null && root.child('globalAdmins').child(auth.uid).val() == true"
+    },
+    "tournamentAdmins": {
+      "$tid": {
+        ".write": "auth != null && root.child('globalAdmins').child(auth.uid).val() == true"
+      }
+    },
     "equipos": {
-      ".write": "auth != null"
+      "$tid": {
+        ".write": "auth != null && (root.child('globalAdmins').child(auth.uid).val() == true || root.child('tournamentAdmins').child($tid).child(auth.uid).exists())"
+      }
     },
     "partidos": {
-      ".write": "auth != null"
+      "$tid": {
+        ".write": "auth != null && (root.child('globalAdmins').child(auth.uid).val() == true || root.child('tournamentAdmins').child($tid).child(auth.uid).exists())"
+      }
     },
     "eventos": {
-      ".write": "auth != null"
-    },
-    "configuracion": {
-      ".write": "auth != null"
+      "$tid": {
+        ".write": "auth != null && (root.child('globalAdmins').child(auth.uid).val() == true || root.child('tournamentAdmins').child($tid).child(auth.uid).exists())"
+      }
     }
   }
 }
