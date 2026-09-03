@@ -2,6 +2,9 @@ import { db } from './firebase.js';
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
 import { esc, timeLabel, dateLabel, normalize } from './common.js';
 const state={tournaments:{},tid:new URLSearchParams(location.search).get('t')||'',teams:{},matches:{},events:{},unsub:[],dateFilter:'all'};
+
+function normalizePublicUrl(){const params=new URLSearchParams(location.search);const tid=params.get('t');if(location.pathname.endsWith('/index.html')){const q=tid?`?t=${encodeURIComponent(tid)}`:'';history.replaceState({},'',`./${q}`);}}
+normalizePublicUrl();
 const $=s=>document.querySelector(s);
 function publicTournaments(){return Object.entries(state.tournaments).filter(([,t])=>t&&t.public!==false&&t.status!=='archived').sort((a,b)=>String(a[1].name||a[0]).localeCompare(String(b[1].name||b[0]),'es'));}
 onValue(ref(db,'tournaments'),snap=>{state.tournaments=snap.val()||{};renderCatalog();loadSelected();});
@@ -11,7 +14,7 @@ function selectPublicTournament(tid){
   const list=publicTournaments();
   if(!tid||!list.some(([id])=>String(id)===tid))return;
   state.tid=tid;
-  history.replaceState({},'',`index.html?t=${encodeURIComponent(tid)}`);
+  history.replaceState({},'',`./?t=${encodeURIComponent(tid)}`);
   renderTournamentPicker();
   closeTournamentPicker();
   loadSelected();
