@@ -271,3 +271,52 @@
 .admin-page .reset-date-no-results{padding:18px 10px;text-align:center;color:var(--muted);font-size:11px}
 @media(max-width:760px){.admin-page .reset-date-menu{position:fixed;left:10px;right:10px;top:74px}.admin-page .reset-date-options{max-height:55vh}}
 .admin-page .reset-date-no-results{display:none}
+
+
+/* V30 — marcador y partido en vivo */
+.hero-scoreboard{position:relative;overflow:hidden}
+.score-center .live-minute{display:inline-flex;align-items:center;justify-content:center;min-width:46px;padding:4px 9px;border-radius:999px;background:rgba(157,247,45,.10);border:1px solid rgba(157,247,45,.28);color:var(--accent);font-size:13px;line-height:1;font-weight:950;letter-spacing:.4px}
+.score-center i{color:var(--muted);opacity:.75}
+.match-card.is-live .score-mid{display:flex;flex-direction:column;align-items:center;gap:3px;line-height:1.05}
+.calendar-live-minute{display:inline-flex;align-items:center;justify-content:center;color:var(--accent);font-size:10px;font-weight:950;letter-spacing:.4px;min-height:16px}
+.live-event-burst{position:absolute;left:50%;top:48%;z-index:8;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:170px;padding:14px 20px;border-radius:18px;background:rgba(5,15,27,.97);border:1px solid rgba(157,247,45,.55);box-shadow:0 16px 45px rgba(0,0,0,.48),0 0 30px rgba(157,247,45,.12);transform:translate(-50%,-50%);animation:liveBurstIn 1s cubic-bezier(.2,.9,.2,1) both}
+.live-event-burst.home{left:25%;}
+.live-event-burst.visitor{left:75%;}
+.live-event-burst .event-icon{font-size:32px;line-height:1;animation:eventIconPop 1s ease both}
+.live-event-burst b{font-size:15px;letter-spacing:1.2px;color:var(--accent);text-align:center}
+.live-event-burst small{font-size:10px;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.live-event-burst em{font-style:normal;font-size:11px;font-weight:900;color:var(--text);margin-top:2px}
+.live-event-burst.yellow{border-color:rgba(244,200,74,.55);box-shadow:0 16px 45px rgba(0,0,0,.45),0 0 28px rgba(244,200,74,.10)}
+.live-event-burst.yellow b{color:var(--gold)}
+.live-event-burst.red{border-color:rgba(229,92,92,.65);box-shadow:0 16px 45px rgba(0,0,0,.45),0 0 28px rgba(229,92,92,.12)}
+.live-event-burst.red b{color:#ff8a8a}
+@keyframes liveBurstIn{0%{opacity:0;transform:translate(-50%,-42%) scale(.72)}45%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}70%{transform:translate(-50%,-50%) scale(.98)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+@keyframes eventIconPop{0%{transform:scale(.3) rotate(-15deg);opacity:0}65%{transform:scale(1.22) rotate(5deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}
+.live-event-burst.goal{border-width:1px;overflow:visible;min-height:128px}
+.live-event-burst.goal .goal-balls{position:absolute;inset:-42px -12px auto;pointer-events:none;height:92px;z-index:-1}
+.live-event-burst.goal .goal-balls span{position:absolute;display:block;font-size:27px;filter:drop-shadow(0 7px 10px rgba(0,0,0,.38));opacity:0}
+.live-event-burst.goal .goal-balls span:nth-child(1){left:8%;animation:goalBall1 4.6s cubic-bezier(.2,.8,.2,1) .1s both}
+.live-event-burst.goal .goal-balls span:nth-child(2){left:44%;font-size:34px;animation:goalBall2 4.8s cubic-bezier(.2,.8,.2,1) both}
+.live-event-burst.goal .goal-balls span:nth-child(3){right:7%;font-size:24px;animation:goalBall3 4.5s cubic-bezier(.2,.8,.2,1) .22s both}
+@keyframes goalBall1{0%{opacity:0;transform:translate(-18px,48px) scale(.25) rotate(-80deg)}15%{opacity:1}45%{opacity:1;transform:translate(20px,-18px) scale(1) rotate(170deg)}78%{opacity:.95;transform:translate(2px,8px) scale(.9) rotate(330deg)}100%{opacity:0;transform:translate(36px,-26px) scale(.55) rotate(460deg)}}
+@keyframes goalBall2{0%{opacity:0;transform:translateY(42px) scale(.25) rotate(0)}18%{opacity:1}48%{opacity:1;transform:translateY(-28px) scale(1.1) rotate(220deg)}78%{opacity:.95;transform:translateY(4px) scale(.88) rotate(420deg)}100%{opacity:0;transform:translateY(-24px) scale(.55) rotate(560deg)}}
+@keyframes goalBall3{0%{opacity:0;transform:translate(18px,50px) scale(.25) rotate(70deg)}16%{opacity:1}48%{opacity:1;transform:translate(-16px,-20px) scale(1.05) rotate(-180deg)}78%{opacity:.95;transform:translate(-2px,7px) scale(.85) rotate(-350deg)}100%{opacity:0;transform:translate(-30px,-25px) scale(.5) rotate(-470deg)}}
+.live-event-burst.goal b{font-size:17px;text-shadow:0 0 18px rgba(157,247,45,.18)}
+.live-event-burst.goal .event-icon{font-size:38px}
+.live-event-burst.yellow,.live-event-burst.red{min-height:108px;animation:liveBurstIn 1s cubic-bezier(.2,.9,.2,1) both}
+.live-event-burst.yellow .event-icon,.live-event-burst.red .event-icon{animation:eventIconPop 1.1s ease both}
+@media(max-width:700px){.live-event-burst{top:52%;min-width:142px;padding:11px 14px}.live-event-burst.home,.live-event-burst.visitor{left:50%}.live-event-burst .event-icon{font-size:28px}.live-event-burst b{font-size:12px}.live-event-burst.goal{min-height:116px}.live-event-burst.goal .event-icon{font-size:32px}.live-event-burst.goal .goal-balls{inset:-38px -4px auto;height:82px}.live-event-burst.goal .goal-balls span{font-size:22px}.live-event-burst.goal .goal-balls span:nth-child(2){font-size:28px}.score-center strong{font-size:32px}}
+@media(prefers-reduced-motion:reduce){.live-event-burst,.live-event-burst .event-icon{animation:none}.live-event-burst{opacity:1}}
+/* V30 — campo de minuto inicial */
+.live-start-field.hidden{display:none}
+.admin-page .live-start-field{margin-top:-2px}
+.admin-page .live-start-field label{display:block}
+.admin-page .live-start-field .field-help{display:block;margin-top:6px;color:var(--muted);font-size:10px;line-height:1.45}
+.admin-page #liveStartMinute{font-variant-numeric:tabular-nums}
+
+/* V33 — control de tiempos del partido */
+.admin-page .live-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+.admin-page .live-actions.hidden,.admin-page .live-period-field.hidden,.admin-page .added-time-field.hidden{display:none}
+.admin-page .live-actions .btn{flex:1 1 180px}
+.admin-page .added-time-field input{font-variant-numeric:tabular-nums}
+@media(max-width:560px){.admin-page .live-actions{flex-direction:column}.admin-page .live-actions .btn{width:100%}}

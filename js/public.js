@@ -1,14 +1,14 @@
 import { db } from './firebase.js';
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
 import { esc, timeLabel, dateLabel, normalize } from './common.js';
-const state={tournaments:{},tid:new URLSearchParams(location.search).get('t')||'',teams:{},matches:{},events:{},unsub:[],dateFilter:'all'};
+const state={tournaments:{},tid:new URLSearchParams(location.search).get('t')||'',teams:{},matches:{},events:{},unsub:[],dateFilter:'all',eventsReady:false,seenEvents:new Set(),liveTimer:null};
 
 function normalizePublicUrl(){const params=new URLSearchParams(location.search);const tid=params.get('t');if(location.pathname.endsWith('/index.html')){const q=tid?`?t=${encodeURIComponent(tid)}`:'';history.replaceState({},'',`./${q}`);}}
 normalizePublicUrl();
 const $=s=>document.querySelector(s);
 function publicTournaments(){return Object.entries(state.tournaments).filter(([,t])=>t&&t.public!==false&&t.status!=='archived').sort((a,b)=>String(a[1].name||a[0]).localeCompare(String(b[1].name||b[0]),'es'));}
 onValue(ref(db,'tournaments'),snap=>{state.tournaments=snap.val()||{};renderCatalog();loadSelected();});
-function loadSelected(){state.unsub.forEach(fn=>{try{fn();}catch{}});state.unsub=[];const list=publicTournaments();if(!list.length){$('#featured').innerHTML='<div class="empty">Todavía no hay torneos publicados.</div>';$('#matchesGrid').innerHTML='';$('#standings').innerHTML='';$('#stats').innerHTML='';$('#scorers').innerHTML='';$('#discipline').innerHTML='';return;}const allowed=state.tid&&list.some(([id])=>id===state.tid);if(!allowed)state.tid=list[0][0];const t=state.tournaments[state.tid];renderTournamentPicker();document.title=`${t.name||'Torneo'} ${t.season||''}`.trim();state.unsub.push(onValue(ref(db,`equipos/${state.tid}`),s=>{state.teams=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`partidos/${state.tid}`),s=>{state.matches=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`eventos/${state.tid}`),s=>{state.events=s.val()||{};renderAll();}));}
+function loadSelected(){state.eventsReady=false;state.seenEvents.clear();if(state.liveTimer){clearInterval(state.liveTimer);state.liveTimer=null;}state.unsub.forEach(fn=>{try{fn();}catch{}});state.unsub=[];const list=publicTournaments();if(!list.length){$('#featured').innerHTML='<div class="empty">Todavía no hay torneos publicados.</div>';$('#matchesGrid').innerHTML='';$('#standings').innerHTML='';$('#stats').innerHTML='';$('#scorers').innerHTML='';$('#discipline').innerHTML='';return;}const allowed=state.tid&&list.some(([id])=>id===state.tid);if(!allowed)state.tid=list[0][0];const t=state.tournaments[state.tid];renderTournamentPicker();document.title=`${t.name||'Torneo'} ${t.season||''}`.trim();state.unsub.push(onValue(ref(db,`equipos/${state.tid}`),s=>{state.teams=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`partidos/${state.tid}`),s=>{state.matches=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`eventos/${state.tid}`),s=>{const next=s.val()||{}; if(!state.eventsReady){state.events=next;state.eventsReady=true;Object.entries(next).forEach(([mid,evs])=>Object.keys(evs||{}).forEach(eid=>state.seenEvents.add(`${mid}/${eid}`)));renderAll();return;} state.events=next;renderAll();detectNewEvents(next); })); startLiveClock();}
 function selectPublicTournament(tid){
   tid=String(tid||'');
   const list=publicTournaments();
@@ -72,16 +72,62 @@ function teamName(id){return team(id).name||id||'Por definir';}
 function teamLogo(id,cls='team-logo'){const u=team(id).logoUrl;return u?`<span class="${cls}"><img src="${esc(u)}" alt=""></span>`:`<span class="${cls}">⚽</span>`;}
 function tournamentLogo(t,cls='tournament-logo'){return t?.logoUrl?`<span class="${cls}"><img src="${esc(t.logoUrl)}" alt=""></span>`:`<span class="${cls}">⚽</span>`;}
 function renderAll(){if(!state.tid)return;const t=state.tournaments[state.tid]||{};$('.brand small').textContent=`${String(t.name||'PLATAFORMA MULTI-TORNEOS').toUpperCase()} · ${t.season||''}`;renderFeatured(t);renderMatches();renderStandings();renderStats();renderFormat(t);}
+function liveMinute(m){
+  if(!m || String(m.status||'').toLowerCase()!=='en juego') return null;
+  const base=Math.max(0,Number(m.liveStartMinute??m.initialMinute??0));
+  const started=Date.parse(m.periodStartedAt||m.liveStartedAt||'');
+  if(!Number.isFinite(started)) return base;
+  return base+Math.max(0,Math.floor((Date.now()-started)/60000));
+}
+function liveMinuteLabel(m){
+  if(!m)return '';
+  const st=String(m.status||'').toLowerCase();
+  if(st==='descanso')return 'DESCANSO';
+  const n=liveMinute(m);
+  if(n==null)return '';
+  const half=Math.max(1,Number(m.liveHalfMinutes??state.tournaments[state.tid]?.format?.halfMinutes??25)||25);
+  const period=String(m.livePeriod||'first').toLowerCase();
+  const added=Math.max(0,Number(m.liveAddedTime||0));
+  const threshold=period==='second'?half*2:half;
+  if(n>threshold && added>0)return `${threshold}+${Math.min(n-threshold,added)}'`;
+  return `${Math.min(n,threshold+added)}'`;
+}
+function liveStateLabel(m){const st=String(m?.status||'').toLowerCase();return st==='descanso'?'⏸ DESCANSO':st==='en juego'?'● EN JUEGO':st==='finalizado'?'● FINALIZADO':'PRÓXIMA FECHA';}
+function startLiveClock(){if(state.liveTimer)clearInterval(state.liveTimer);state.liveTimer=setInterval(()=>{if(!state.tid)return;const live=Object.values(state.matches).some(m=>['en juego','descanso'].includes(String(m.status||'').toLowerCase()));if(live){document.querySelectorAll('[data-live-minute]').forEach(el=>{const m=state.matches[el.dataset.matchId];if(m)el.textContent=liveMinuteLabel(m);});}},1000);}
 function renderFeatured(t){
   const games=Object.entries(state.matches).map(([id,m])=>({id,...m})).sort((a,b)=>String(a.dateValue||'9999').localeCompare(String(b.dateValue||'9999'))||String(a.time||'').localeCompare(String(b.time||'')));
-  const live=games.find(m=>String(m.status||'').toLowerCase()==='en juego');
+  const live=games.find(m=>['en juego','descanso'].includes(String(m.status||'').toLowerCase()));
   const next=live||games.find(m=>String(m.status||'').toLowerCase()!=='finalizado');
   if(!next){$('#featured').innerHTML='<div class="empty">No hay partidos programados.</div>';return;}
   const st=String(next.status||'programado').toLowerCase();
   const dateText=next.dateValue?dateLabel(next.dateValue):String(next.roundLabel||'JORNADA POR DEFINIR').toUpperCase();
   const group=next.group?`<span class="featured-group">GRUPO ${esc(next.group)}</span>`:'';
-  $('#featured').innerHTML=`<div class="scoreboard-head"><span>${st==='en juego'?'● EN JUEGO':'PRÓXIMA FECHA'}</span><b>${esc(dateText)}</b></div><div class="featured-match featured-clean"><div class="team-side"><b>${esc(teamName(next.local))}</b><small>LOCAL</small></div><div class="score-center"><span>${esc(timeLabel(next.time))}</span><strong>${st==='en juego'||st==='finalizado'?`${Number(next.homeScore||0)} — ${Number(next.awayScore||0)}`:'VS'}</strong></div><div class="team-side"><b>${esc(teamName(next.visitor))}</b><small>VISITANTE</small></div></div>${group}`;
+  const minute=['en juego','descanso'].includes(st)?`<span class="live-minute" data-live-minute data-match-id="${esc(next.id)}">${liveMinuteLabel(next)}</span>`:'';
+  $('#featured').innerHTML=`<div class="scoreboard-head"><span>${liveStateLabel(next)}</span><b>${esc(dateText)}</b></div><div class="featured-match featured-clean" data-featured-match="${esc(next.id)}"><div class="team-side home-side"><b>${esc(teamName(next.local))}</b><small>LOCAL</small></div><div class="score-center"><span>${['en juego','descanso'].includes(st)?minute:esc(timeLabel(next.time))}</span><strong>${st==='en juego'||st==='finalizado'||st==='descanso'?`${Number(next.homeScore||0)} — ${Number(next.awayScore||0)}`:'VS'}</strong>${st==='en juego'||st==='descanso'?'<i>VS</i>':''}</div><div class="team-side visitor-side"><b>${esc(teamName(next.visitor))}</b><small>VISITANTE</small></div></div>${group}`;
 }
+function detectNewEvents(next){
+  const candidates=[];
+  Object.entries(next||{}).forEach(([mid,evs])=>Object.entries(evs||{}).forEach(([eid,e])=>{const key=`${mid}/${eid}`;if(!state.seenEvents.has(key)){state.seenEvents.add(key);candidates.push({mid,eid,e});}}));
+  if(!candidates.length)return;
+  const item=candidates[candidates.length-1];
+  const match=state.matches[item.mid];
+  if(!match || String(match.status||'').toLowerCase()!=='en juego')return;
+  showLiveEvent(match,item.e);
+}
+function showLiveEvent(match,e){
+  const host=$('#featured'); if(!host)return;
+  const type=String(e?.type||'').toLowerCase();
+  const cls=type==='gol'?'goal':type==='roja'?'red':'yellow';
+  const icon=type==='gol'?'⚽':type==='roja'?'🟥':'🟨';
+  const label=type==='gol'?'GOOOOOL':type==='roja'?'TARJETA ROJA':'TARJETA AMARILLA';
+  const side=e?.team===match.visitor?'visitor':'home';
+  const player=e?.player?`<small>${esc(e.player)}</small>`:'';
+  const old=host.querySelector('.live-event-burst');old?.remove();
+  const burst=document.createElement('div');burst.className=`live-event-burst ${cls} ${side}`;burst.innerHTML=`${type==='gol'?'<div class="goal-balls" aria-hidden="true"><span>⚽</span><span>⚽</span><span>⚽</span></div>':''}<span class="event-icon">${icon}</span><b>${label}</b>${player}<em>${esc(e?.minute!=null?`${e.minute}'`:liveMinuteLabel(match))}</em>`;
+  host.appendChild(burst);
+  setTimeout(()=>burst.remove(),5000);
+}
+
 function phaseLabel(m){
   const v=String(m.phase||m.stageName||'fase de grupos').replace(/_/g,' ').trim();
   return v? v.toUpperCase() : 'FASE DE GRUPOS';
@@ -105,7 +151,7 @@ function renderMatches(){
     const st=String(m.status||'programado').toLowerCase();
     const dateText=m.dateValue?dateLabel(m.dateValue):'';
     const group=m.group?`<span class="match-group-badge group-${String(m.group).toLowerCase()}">${esc(m.group)}</span>`:'';
-    return `<article class="match-card ${st==='en juego'?'is-live':st==='finalizado'?'is-finished':''}"><div class="match-meta rich"><span>${esc(dateName(m))}</span><span>▦ ${esc(dateText)}</span><span>◉ ${esc(timeLabel(m.time))}</span>${group}</div><div class="match-teams"><div class="team-block home"><div class="team-row">${teamLogo(m.local,'team-logo')}<b>${esc(teamName(m.local))}</b></div><small>LOCAL</small></div><strong class="score-mid">${st==='programado'?'VS':`${Number(m.homeScore||0)} — ${Number(m.awayScore||0)}`}</strong><div class="team-block visitor"><div class="team-row"><b>${esc(teamName(m.visitor))}</b>${teamLogo(m.visitor,'team-logo')}</div><small>VISITANTE</small></div></div><div class="match-footer">${st==='finalizado'?'<span class="finished-status">● FINALIZADO</span>':st==='programado'?'<span>○ PROGRAMADO</span>':'<span class="live-status">● EN JUEGO</span>'}<span>${esc(phaseLabel(m))}</span></div></article>`;
+    return `<article class="match-card ${['en juego','descanso'].includes(st)?'is-live':st==='finalizado'?'is-finished':''}"><div class="match-meta rich"><span>${esc(dateName(m))}</span><span>▦ ${esc(dateText)}</span><span>◉ ${esc(timeLabel(m.time))}</span>${group}</div><div class="match-teams"><div class="team-block home"><div class="team-row">${teamLogo(m.local,'team-logo')}<b>${esc(teamName(m.local))}</b></div><small>LOCAL</small></div><strong class="score-mid">${['en juego','descanso'].includes(st)?`<span class="calendar-live-minute" data-live-minute data-match-id="${esc(m.id)}">${liveMinuteLabel(m)}</span>`:''}${st==='programado'?'VS':`${Number(m.homeScore||0)} — ${Number(m.awayScore||0)}`}</strong><div class="team-block visitor"><div class="team-row"><b>${esc(teamName(m.visitor))}</b>${teamLogo(m.visitor,'team-logo')}</div><small>VISITANTE</small></div></div><div class="match-footer">${st==='finalizado'?'<span class="finished-status">● FINALIZADO</span>':st==='programado'?'<span>○ PROGRAMADO</span>':st==='descanso'?'<span class="live-status">⏸ DESCANSO</span>':'<span class="live-status">● EN JUEGO</span>'}<span>${esc(phaseLabel(m))}</span></div></article>`;
   }).join(''):'<div class="empty">No hay partidos para esta fecha.</div>';
 }
 function firstGroupStage(){const f=state.tournaments[state.tid]?.format||{};return (f.stages||[]).find(s=>s.type==='round_robin');}

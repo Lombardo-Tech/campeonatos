@@ -11,3 +11,5 @@ Solo los administradores globales pueden crear/modificar/eliminar torneos y asig
 
 ## GitHub Pages
 Sube el contenido de esta carpeta a la raíz del repositorio, con `index.html` en la raíz, y activa Settings > Pages > Deploy from a branch > main > /(root).
+
+V33: gestión de primer tiempo, descanso, segundo tiempo y tiempo adicional en partidos en vivo.
