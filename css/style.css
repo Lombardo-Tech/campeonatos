@@ -239,3 +239,35 @@
   .admin-page .status-badge{font-size:9px}
   .admin-page .modal-box{padding:16px 11px}
 }
+
+/* V29 — selector de reinicio de fecha tipo Select2 */
+.admin-page .reset-date-picker{position:relative;min-width:0;z-index:25}
+.admin-page #resetDateSelect{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important}
+.admin-page .reset-date-picker-button{width:100%;min-height:58px;display:grid;grid-template-columns:minmax(0,1fr) 36px;align-items:center;gap:10px;text-align:left;background:#081726;border:1px solid var(--line);border-radius:12px;color:var(--text);padding:9px 11px;cursor:pointer;transition:.15s}
+.admin-page .reset-date-picker-button:hover,.admin-page .reset-date-picker[data-open="true"] .reset-date-picker-button{border-color:rgba(157,247,45,.65);box-shadow:0 0 0 2px rgba(157,247,45,.05)}
+.admin-page .reset-date-current{min-width:0}
+.admin-page .reset-date-current b,.admin-page .reset-date-current small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.admin-page .reset-date-current b{font-size:12px}
+.admin-page .reset-date-current small{font-size:9px;color:var(--muted);margin-top:4px}
+.admin-page .reset-date-chevron{width:34px;height:34px;display:grid;place-items:center;justify-self:end;border:1px solid var(--line);border-radius:10px;background:#0b1b2b;color:var(--text);font-size:20px;font-weight:800;line-height:1;transition:.15s}
+.admin-page .reset-date-picker[data-open="true"] .reset-date-chevron{border-color:rgba(157,247,45,.55);background:#102235;color:var(--accent);transform:rotate(180deg)}
+.admin-page .reset-date-menu{display:none;position:absolute;left:0;right:0;top:calc(100% + 7px);background:#0b1b2b;border:1px solid var(--line);border-radius:14px;padding:9px;box-shadow:0 18px 45px rgba(0,0,0,.42);overflow:hidden}
+.admin-page .reset-date-picker[data-open="true"] .reset-date-menu{display:block}
+.admin-page .reset-date-search-wrap{height:42px;display:grid;grid-template-columns:24px 1fr;align-items:center;gap:6px;padding:0 10px;background:#081726;border:1px solid var(--line);border-radius:10px}
+.admin-page .reset-date-search-wrap span{color:var(--muted);font-size:20px;text-align:center}
+.admin-page .reset-date-search-wrap input{width:100%;height:100%;border:0!important;background:transparent!important;color:var(--text);outline:0!important;padding:0!important;margin:0!important;font-size:12px}
+.admin-page .reset-date-search-wrap input::placeholder{color:#71859b}
+.admin-page .reset-date-options{max-height:280px;overflow:auto;margin-top:7px;padding-right:2px}
+.admin-page .reset-date-option{width:100%;display:grid;grid-template-columns:38px minmax(0,1fr) 22px;align-items:center;gap:10px;text-align:left;background:transparent;border:1px solid transparent;color:var(--text);padding:8px;border-radius:10px;cursor:pointer}
+.admin-page .reset-date-option:hover{background:#102235;border-color:var(--line)}
+.admin-page .reset-date-option.selected{background:rgba(157,247,45,.08);border-color:rgba(157,247,45,.42)}
+.admin-page .reset-date-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:8px;background:#071521;border:1px solid var(--line);font-size:16px}
+.admin-page .reset-date-option span:nth-child(2){min-width:0}
+.admin-page .reset-date-option b,.admin-page .reset-date-option small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.admin-page .reset-date-option b{font-size:11px}
+.admin-page .reset-date-option small{font-size:9px;color:var(--muted);margin-top:3px}
+.admin-page .reset-date-option i{font-style:normal;color:var(--accent);font-weight:900;text-align:center;opacity:0}
+.admin-page .reset-date-option.selected i{opacity:1}
+.admin-page .reset-date-no-results{padding:18px 10px;text-align:center;color:var(--muted);font-size:11px}
+@media(max-width:760px){.admin-page .reset-date-menu{position:fixed;left:10px;right:10px;top:74px}.admin-page .reset-date-options{max-height:55vh}}
+.admin-page .reset-date-no-results{display:none}
