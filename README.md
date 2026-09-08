@@ -1,4 +1,4 @@
-# Plataforma Multi-Torneos — V36 estable (base V35)
+# Plataforma Multi-Torneos — V37 estable (base V35)
 
 Base para crear y administrar múltiples torneos con Firebase Realtime Database y publicar con GitHub Pages.
 
@@ -15,7 +15,7 @@ Sube el contenido de esta carpeta a la raíz del repositorio, con `index.html` e
 V33: gestión de primer tiempo, descanso, segundo tiempo y tiempo adicional en partidos en vivo.
 
 
-## Generación de fechas — V36 estable
+## Generación de fechas — V37 estable
 
 - **Generar siguiente fecha:** crea la próxima jornada de la fase de grupos, respetando las jornadas ya existentes.
 - **Generar todas las fechas:** crea de una sola vez las jornadas restantes hasta completar el todos-contra-todos.
