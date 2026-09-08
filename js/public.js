@@ -1,7 +1,7 @@
 import { db } from './firebase.js';
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
 import { esc, timeLabel, dateLabel, normalize } from './common.js';
-const state={tournaments:{},tid:new URLSearchParams(location.search).get('t')||'',teams:{},matches:{},events:{},unsub:[],dateFilter:'all',eventsReady:false,seenEvents:new Set(),liveTimer:null};
+const state={tournaments:{},tid:new URLSearchParams(location.search).get('t')||'',teams:{},matches:{},events:{},unsub:[],dateFilter:'all',eventsReady:false,seenEvents:new Set(),liveTimer:null,selectedMatchId:null};
 
 function normalizePublicUrl(){const params=new URLSearchParams(location.search);const tid=params.get('t');if(location.pathname.endsWith('/index.html')){const q=tid?`?t=${encodeURIComponent(tid)}`:'';history.replaceState({},'',`./${q}`);}}
 normalizePublicUrl();
@@ -65,7 +65,7 @@ function toggleTournamentPicker(){
 $('#tournamentPickerButton')?.addEventListener('click',toggleTournamentPicker);
 $('#tournamentPickerSearch')?.addEventListener('input',e=>renderTournamentPicker(e.target.value));
 document.addEventListener('click',e=>{const picker=$('#tournamentPicker');if(picker&&!picker.contains(e.target))closeTournamentPicker();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeTournamentPicker();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeTournamentPicker();closeMatchDetail();}});
 function renderCatalog(){ renderTournamentPicker($('#tournamentPickerSearch')?.value||''); }
 function team(id){return state.teams[id]||{};}
 function teamName(id){return team(id).name||id||'Por definir';}
@@ -151,9 +151,56 @@ function renderMatches(){
     const st=String(m.status||'programado').toLowerCase();
     const dateText=m.dateValue?dateLabel(m.dateValue):'';
     const group=m.group?`<span class="match-group-badge group-${String(m.group).toLowerCase()}">${esc(m.group)}</span>`:'';
-    return `<article class="match-card ${['en juego','descanso'].includes(st)?'is-live':st==='finalizado'?'is-finished':''}"><div class="match-meta rich"><span>${esc(dateName(m))}</span><span>▦ ${esc(dateText)}</span><span>◉ ${esc(timeLabel(m.time))}</span>${group}</div><div class="match-teams"><div class="team-block home"><div class="team-row">${teamLogo(m.local,'team-logo')}<b>${esc(teamName(m.local))}</b></div><small>LOCAL</small></div><strong class="score-mid">${['en juego','descanso'].includes(st)?`<span class="calendar-live-minute" data-live-minute data-match-id="${esc(m.id)}">${liveMinuteLabel(m)}</span>`:''}${st==='programado'?'VS':`${Number(m.homeScore||0)} — ${Number(m.awayScore||0)}`}</strong><div class="team-block visitor"><div class="team-row"><b>${esc(teamName(m.visitor))}</b>${teamLogo(m.visitor,'team-logo')}</div><small>VISITANTE</small></div></div><div class="match-footer">${st==='finalizado'?'<span class="finished-status">● FINALIZADO</span>':st==='programado'?'<span>○ PROGRAMADO</span>':st==='descanso'?'<span class="live-status">⏸ DESCANSO</span>':'<span class="live-status">● EN JUEGO</span>'}<span>${esc(phaseLabel(m))}</span></div></article>`;
+    return `<article class="match-card ${['en juego','descanso'].includes(st)?'is-live':st==='finalizado'?'is-finished':''}" data-match-id="${esc(m.id)}" role="button" tabindex="0" aria-label="Ver detalles de ${esc(teamName(m.local))} vs ${esc(teamName(m.visitor))}"><div class="match-meta rich"><span>${esc(dateName(m))}</span><span>▦ ${esc(dateText)}</span><span>◉ ${esc(timeLabel(m.time))}</span>${group}</div><div class="match-teams"><div class="team-block home"><div class="team-row">${teamLogo(m.local,'team-logo')}<b>${esc(teamName(m.local))}</b></div><small>LOCAL</small></div><strong class="score-mid">${['en juego','descanso'].includes(st)?`<span class="calendar-live-minute" data-live-minute data-match-id="${esc(m.id)}">${liveMinuteLabel(m)}</span>`:''}${st==='programado'?'VS':`${Number(m.homeScore||0)} — ${Number(m.awayScore||0)}`}</strong><div class="team-block visitor"><div class="team-row"><b>${esc(teamName(m.visitor))}</b>${teamLogo(m.visitor,'team-logo')}</div><small>VISITANTE</small></div></div><div class="match-footer">${st==='finalizado'?'<span class="finished-status">● FINALIZADO</span>':st==='programado'?'<span>○ PROGRAMADO</span>':st==='descanso'?'<span class="live-status">⏸ DESCANSO</span>':'<span class="live-status">● EN JUEGO</span>'}<span>${esc(phaseLabel(m))}</span></div></article>`;
   }).join(''):'<div class="empty">No hay partidos para esta fecha.</div>';
+  bindMatchInteractions();
+  if(state.selectedMatchId && state.matches[state.selectedMatchId]) refreshOpenMatchDetail();
 }
+function matchEvents(matchId){
+  return Object.entries(state.events?.[matchId]||{}).map(([id,e])=>({id,...e})).sort((a,b)=>Number(a.minute||0)-Number(b.minute||0));
+}
+function matchEventType(e){return String(e?.type||'').toLowerCase();}
+function matchEventIcon(e){const t=matchEventType(e);return t==='gol'?'⚽':t==='roja'?'🟥':t==='amarilla'?'🟨':'•';}
+function matchEventLabel(e){const t=matchEventType(e);return t==='gol'?'Gol':t==='roja'?'Tarjeta roja':t==='amarilla'?'Tarjeta amarilla':String(e?.type||'Evento');}
+function renderMatchDetail(matchId){
+  const modal=$('#matchDetailModal'); if(!modal)return;
+  const match=state.matches?.[matchId]; if(!match)return;
+  state.selectedMatchId=matchId;
+  const st=String(match.status||'programado').toLowerCase();
+  const home=teamName(match.local), away=teamName(match.visitor);
+  const events=matchEvents(matchId);
+  const goals=events.filter(e=>matchEventType(e)==='gol').length;
+  const yellows=events.filter(e=>matchEventType(e)==='amarilla').length;
+  const reds=events.filter(e=>matchEventType(e)==='roja').length;
+  const statusHtml=st==='finalizado'?'<span class="detail-status finished">● FINALIZADO</span>':st==='en juego'?'<span class="detail-status live">● EN JUEGO</span>':st==='descanso'?'<span class="detail-status break">⏸ DESCANSO</span>':'<span class="detail-status scheduled">○ PROGRAMADO</span>';
+  const score=st==='programado'?'VS':`${Number(match.homeScore||0)} — ${Number(match.awayScore||0)}`;
+  const time=st==='en juego'||st==='descanso'?liveMinuteLabel(match):timeLabel(match.time);
+  const date=match.dateValue?dateLabel(match.dateValue):String(match.roundLabel||'Fecha por definir');
+  const group=match.group?`<span class="detail-pill">GRUPO ${esc(match.group)}</span>`:'';
+  const eventHtml=events.length?events.map(e=>{
+    const side=e.team===match.visitor?'away':'home';
+    const minute=e.minute!=null?`${esc(e.minute)}'`:'';
+    return `<div class="detail-event ${side} ${matchEventType(e)}"><div class="detail-event-time">${minute}</div><div class="detail-event-icon">${matchEventIcon(e)}</div><div class="detail-event-info"><b>${esc(matchEventLabel(e))}</b>${e.player?`<span>${esc(e.player)}</span>`:''}<small>${side==='home'?esc(home):esc(away)}</small></div></div>`;
+  }).join(''):'<div class="detail-empty"><span>⚽</span><b>Sin eventos registrados</b><small>Los goles y tarjetas aparecerán aquí durante el partido.</small></div>';
+  modal.innerHTML=`<div class="modal-backdrop" data-close-match></div><div class="match-detail-box" role="dialog" aria-modal="true" aria-labelledby="matchDetailTitle"><button class="modal-close public-modal-close" type="button" aria-label="Cerrar" data-close-match>×</button><div class="detail-top"><div><span class="kicker">${esc(phaseLabel(match))}</span><h2 id="matchDetailTitle">${esc(date)}</h2></div>${statusHtml}</div><div class="detail-meta"><span>▦ ${esc(date)}</span><span>◷ ${esc(time)}</span>${group}</div><div class="detail-scoreboard"><div class="detail-team home"><div class="detail-logo">${teamLogo(match.local,'team-logo')}</div><b>${esc(home)}</b><small>LOCAL</small></div><div class="detail-score"><strong>${score}</strong>${st==='en juego'||st==='descanso'?`<span data-live-minute data-match-id="${esc(matchId)}">${esc(liveMinuteLabel(match))}</span>`:''}</div><div class="detail-team away"><div class="detail-logo">${teamLogo(match.visitor,'team-logo')}</div><b>${esc(away)}</b><small>VISITANTE</small></div></div><div class="detail-summary"><div><b>${goals}</b><span>⚽ Goles</span></div><div><b>${yellows}</b><span>🟨 Amarillas</span></div><div><b>${reds}</b><span>🟥 Rojas</span></div></div><section class="detail-section"><div class="detail-section-head"><div><span class="kicker">CRONOLOGÍA</span><h3>Eventos del partido</h3></div><span>${events.length} evento${events.length===1?'':'s'}</span></div><div class="detail-events">${eventHtml}</div></section><div class="detail-footer"><span>${st==='programado'?'El partido todavía no ha comenzado.':st==='finalizado'?'Partido finalizado.':'Información actualizada en tiempo real.'}</span><button class="btn ghost" type="button" data-close-match>Cerrar</button></div></div>`;
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+}
+function closeMatchDetail(){const modal=$('#matchDetailModal');if(!modal)return;modal.classList.remove('open');modal.setAttribute('aria-hidden','true');state.selectedMatchId=null;document.body.classList.remove('modal-open');}
+function bindMatchInteractions(){
+  const grid=$('#matchesGrid'); if(grid&&!grid.dataset.bound){
+    grid.dataset.bound='1';
+    grid.addEventListener('click',e=>{const card=e.target.closest('[data-match-id]');if(card)renderMatchDetail(card.dataset.matchId);});
+    grid.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('[data-match-id]')){e.preventDefault();renderMatchDetail(e.target.closest('[data-match-id]').dataset.matchId);}});
+  }
+  const modal=$('#matchDetailModal'); if(modal&&!modal.dataset.bound){
+    modal.dataset.bound='1';
+    modal.addEventListener('click',e=>{if(e.target.closest('[data-close-match]'))closeMatchDetail();});
+  }
+}
+function refreshOpenMatchDetail(){if(state.selectedMatchId)renderMatchDetail(state.selectedMatchId);}
+
 function firstGroupStage(){const f=state.tournaments[state.tid]?.format||{};return (f.stages||[]).find(s=>s.type==='round_robin');}
 function standingsFor(group,stageId){const out={};Object.entries(state.teams).filter(([,t])=>String(t.group||'')===String(group)).forEach(([id,t])=>out[id]={id,name:t.name||id,pj:0,pg:0,pe:0,pp:0,gf:0,gc:0,dg:0,pts:0});const f=state.tournaments[state.tid]?.format||{};const win=Number(f.points?.win??3),draw=Number(f.points?.draw??1);Object.values(state.matches).filter(m=>{const ms=String(m.stageId||'').trim();const mn=String(m.phase||'').trim().toLowerCase();const target=String(stageId||'').trim();const st=state.tournaments[state.tid]?.format?.stages||[];const targetStage=Array.isArray(st)?st.find(x=>String(x.id||'')===target):null;const targetName=String(targetStage?.name||'').trim().toLowerCase();const stageOk=!target||!ms||ms===target||!!targetName&&mn===targetName;const groupOk=String(m.group||'').trim().toUpperCase()===String(group||'').trim().toUpperCase();const status=String(m.status||'').trim().toLowerCase().replace(/_/g,' ');return stageOk&&groupOk&&status==='finalizado';}).forEach(m=>{if(!out[m.local]||!out[m.visitor])return;const a=Number(m.homeScore||0),b=Number(m.awayScore||0);out[m.local].pj++;out[m.visitor].pj++;out[m.local].gf+=a;out[m.local].gc+=b;out[m.visitor].gf+=b;out[m.visitor].gc+=a;if(a>b){out[m.local].pg++;out[m.local].pts+=win;out[m.visitor].pp++;}else if(a<b){out[m.visitor].pg++;out[m.visitor].pts+=win;out[m.local].pp++;}else{out[m.local].pe++;out[m.visitor].pe++;out[m.local].pts+=draw;out[m.visitor].pts+=draw;}});return Object.values(out).map(x=>(x.dg=x.gf-x.gc,x)).sort((a,b)=>b.pts-a.pts||b.dg-a.dg||b.gf-a.gf||a.name.localeCompare(b.name,'es'));}
 function renderStandings(){const stage=firstGroupStage();if(!stage){$('#standings').innerHTML='<div class="empty">Este torneo no tiene una fase de grupos publicada.</div>';return;}const groups=[...new Set(Object.values(state.teams).map(t=>t.group).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'es'));$('#standings').innerHTML=groups.length?groups.map(g=>`<div class="standings-card"><div class="card-title"><div><span class="group-badge ${String(g).toUpperCase()==='B'?'group-b':''}">${esc(g)}</span><div><b>GRUPO ${esc(g)}</b><small>Todos contra todos</small></div></div><span>${esc(stage.name||'Fase de grupos')}</span></div><div class="table-wrap"><table><colgroup><col class="col-pos"><col class="col-team"><col><col><col><col><col><col></colgroup><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>DG</th><th>PTS</th></tr></thead><tbody>${standingsFor(g,stage.id).map((x,i)=>`<tr><td><span class="pos ${i<2?'qualified':''}">${i+1}</span></td><td><div class="table-team">${teamLogo(x.id,'team-logo tiny')}<b>${esc(x.name)}</b></div></td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pe}</td><td>${x.pp}</td><td class="${x.dg>=0?'positive':'negative'}">${x.dg>0?'+':''}${x.dg}</td><td><strong>${x.pts}</strong></td></tr>`).join('')}</tbody></table></div></div>`).join(''):'<div class="empty">Asigna grupos a los equipos para mostrar posiciones.</div>';}
