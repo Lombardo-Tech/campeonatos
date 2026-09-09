@@ -1,6 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
 import { getDatabase } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
+import { getFunctions } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js';
 
 const firebaseConfig = {
   databaseURL: 'https://lubajar-e9c33-default-rtdb.firebaseio.com',
@@ -15,3 +16,4 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);
 export const auth = getAuth(app);
+export const functions = getFunctions(app);

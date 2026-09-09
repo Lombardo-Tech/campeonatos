@@ -1,4 +1,4 @@
-const {onCall,onRequest}=require('firebase-functions/v2/https');
+const {onCall,onRequest,HttpsError}=require('firebase-functions/v2/https');
 const {initializeApp}=require('firebase-admin/app');
 const {getDatabase}=require('firebase-admin/database');
 initializeApp();
@@ -48,3 +48,5 @@ exports.payphoneNotification=onRequest(async(req,res)=>{
     return res.status(200).json({ok:true});
   }catch(e){console.error(e);return res.status(500).send('Error');}
 });
+
+

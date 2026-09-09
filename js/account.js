@@ -27,7 +27,7 @@ function render(data){
       <div class="account-meta"><span>Temporada <b>${esc(t.season||'')}</b></span><span>Estado <b>${closed?'FINALIZADO':t.status==='active'?'ACTIVO':'BORRADOR'}</b></span></div>
       ${paid?`<div class="pay-box payment-confirmed"><strong>✓</strong><div><small>Publicación de un torneo</small><b>Pago confirmado</b></div></div>`:''}
       ${submitted?`<div class="pay-box payment-review"><strong>✓</strong><div><small>Comprobante enviado</small><b>Tu pago está siendo revisado</b><span>Te notificaremos al confirmar la transferencia.</span></div></div>`:''}
-      ${!paid&&!submitted?`<div class="pay-box"><strong>$20</strong><div><small>Publicación de un torneo</small><a class="ghost-btn pay-btn" href="pago.html?tid=${encodeURIComponent(id)}">Opciones de pago</a></div></div>`:''}
+      ${!paid&&!submitted?`<div class="pay-box"><strong>$20</strong><div><small>Publicación de un torneo</small><a class="ghost-btn pay-btn" href="pago?tid=${encodeURIComponent(id)}">Opciones de pago</a></div></div>`:''}
     </article>`;
   }).join('')||'<div class="empty">Todavía no tienes torneos. Crea el primero.</div>';
 }

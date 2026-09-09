@@ -54,6 +54,19 @@
       },
       ".read": true
     },
+    "jugadores": {"$tid": {".read": true, ".write": "auth != null && (root.child('globalAdmins').child(auth.uid).val() == true || root.child('tournaments').child($tid).child('ownerUid').val() == auth.uid || root.child('tournamentAdmins').child($tid).child(auth.uid).exists())"}},
+    "inscripciones": {
+      "$tid": {
+        ".read": true,
+        "$rid": {
+          ".write": "(auth != null && (root.child('globalAdmins').child(auth.uid).val() == true || root.child('tournaments').child($tid).child('ownerUid').val() == auth.uid || root.child('tournamentAdmins').child($tid).child(auth.uid).exists())) || (!data.exists() && newData.child('status').val() == 'pending' && newData.child('source').val() == 'public' && root.child('tournaments').child($tid).child('status').val() == 'active' && newData.child('team').isString() && newData.child('team').val().length > 0 && newData.child('team').val().length <= 100 && newData.child('delegate').isString() && newData.child('delegate').val().length <= 100 && newData.child('contact').isString() && newData.child('contact').val().length <= 40 && newData.child('email').isString() && newData.child('email').val().length <= 160 && newData.child('notes').isString() && newData.child('notes').val().length <= 500 && newData.child('tournamentId').val() == $tid)"
+        }
+      }
+    },
+    "sedes": {"$tid": {".read": true, ".write": "auth != null && (root.child('globalAdmins').child(auth.uid).val() == true || root.child('tournaments').child($tid).child('ownerUid').val() == auth.uid || root.child('tournamentAdmins').child($tid).child(auth.uid).exists())"}},
+    "noticias": {"$tid": {".read": true, ".write": "auth != null && (root.child('globalAdmins').child(auth.uid).val() == true || root.child('tournaments').child($tid).child('ownerUid').val() == auth.uid || root.child('tournamentAdmins').child($tid).child(auth.uid).exists())"}},
+    "patrocinadores": {"$tid": {".read": true, ".write": "auth != null && (root.child('globalAdmins').child(auth.uid).val() == true || root.child('tournaments').child($tid).child('ownerUid').val() == auth.uid || root.child('tournamentAdmins').child($tid).child(auth.uid).exists())"}},
+    "premios": {"$tid": {".read": true, ".write": "auth != null && (root.child('globalAdmins').child(auth.uid).val() == true || root.child('tournaments').child($tid).child('ownerUid').val() == auth.uid || root.child('tournamentAdmins').child($tid).child(auth.uid).exists())"}},
     "paymentConfig": {
       "public": {
         ".read": true,

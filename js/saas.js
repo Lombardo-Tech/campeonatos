@@ -7,10 +7,10 @@ export const esc = v => String(v ?? '').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':
 export const uidKey = (p='id') => `${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 export const fmtDate = v => v ? new Date(v+'T12:00:00').toLocaleDateString('es-EC',{day:'2-digit',month:'short',year:'numeric'}) : '';
 
-export function guardPage({login='registro.html', onUser}={}){
+export function guardPage({login='registro', onUser}={}){
   return onAuthStateChanged(auth,u=>{ if(!u){ location.href=login; return; } onUser?.(u); });
 }
-export function redirectIfAuth(url='cuenta.html'){
+export function redirectIfAuth(url='cuenta'){
   return onAuthStateChanged(auth,u=>{ if(u) location.href=url; });
 }
 export async function registerUser({name,email,password,phone=''}={}){
@@ -25,4 +25,4 @@ export async function getOwnedTournaments(uid){
   const s=await get(query(ref(db,'tournaments'),orderByChild('ownerUid'),equalTo(uid)));
   return s.val()||{};
 }
-export async function logout(){await signOut(auth);location.href='inicio.html';}
+export async function logout(){await signOut(auth);location.href='inicio';}

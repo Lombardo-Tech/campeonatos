@@ -1,14 +1,14 @@
 import { db } from './firebase.js';
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
 import { esc, timeLabel, dateLabel, normalize } from './common.js';
-const state={tournaments:{},tid:new URLSearchParams(location.search).get('t')||'',teams:{},matches:{},events:{},unsub:[],dateFilter:'all',eventsReady:false,seenEvents:new Set(),liveTimer:null,selectedMatchId:null};
+const state={tournaments:{},tid:new URLSearchParams(location.search).get('t')||'',teams:{},matches:{},events:{},players:{},news:{},sponsors:{},venues:{},awards:{},unsub:[],dateFilter:'all',eventsReady:false,seenEvents:new Set(),liveTimer:null,selectedMatchId:null};
 
 function normalizePublicUrl(){const params=new URLSearchParams(location.search);const tid=params.get('t');if(location.pathname.endsWith('/index.html')){const q=tid?`?t=${encodeURIComponent(tid)}`:'';history.replaceState({},'',`./${q}`);}}
 normalizePublicUrl();
 const $=s=>document.querySelector(s);
 function publicTournaments(){return Object.entries(state.tournaments).filter(([,t])=>{if(!t||t.public===false||t.status==='archived')return false;/* Los torneos creados por organizadores solo son públicos después del pago. Los torneos legacy/global sin ownerUid conservan su publicación normal. */return t.ownerUid ? (t.status==='active'&&t.paymentStatus==='paid') : t.status==='active';}).sort((a,b)=>String(a[1].name||a[0]).localeCompare(String(b[1].name||b[0]),'es'));}
 onValue(ref(db,'tournaments'),snap=>{state.tournaments=snap.val()||{};renderCatalog();loadSelected();});
-function loadSelected(){state.eventsReady=false;state.seenEvents.clear();if(state.liveTimer){clearInterval(state.liveTimer);state.liveTimer=null;}state.unsub.forEach(fn=>{try{fn();}catch{}});state.unsub=[];const list=publicTournaments();if(!list.length){$('#featured').innerHTML='<div class="empty">Todavía no hay torneos publicados.</div>';$('#matchesGrid').innerHTML='';$('#standings').innerHTML='';$('#stats').innerHTML='';$('#scorers').innerHTML='';$('#discipline').innerHTML='';return;}const allowed=state.tid&&list.some(([id])=>id===state.tid);if(!allowed)state.tid=list[0][0];const t=state.tournaments[state.tid];renderTournamentPicker();document.title=`${t.name||'Torneo'} ${t.season||''}`.trim();state.unsub.push(onValue(ref(db,`equipos/${state.tid}`),s=>{state.teams=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`partidos/${state.tid}`),s=>{state.matches=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`eventos/${state.tid}`),s=>{const next=s.val()||{}; if(!state.eventsReady){state.events=next;state.eventsReady=true;Object.entries(next).forEach(([mid,evs])=>Object.keys(evs||{}).forEach(eid=>state.seenEvents.add(`${mid}/${eid}`)));renderAll();return;} state.events=next;renderAll();detectNewEvents(next); })); startLiveClock();}
+function loadSelected(){state.eventsReady=false;state.seenEvents.clear();if(state.liveTimer){clearInterval(state.liveTimer);state.liveTimer=null;}state.unsub.forEach(fn=>{try{fn();}catch{}});state.unsub=[];const list=publicTournaments();if(!list.length){$('#featured').innerHTML='<div class="empty">Todavía no hay torneos publicados.</div>';$('#matchesGrid').innerHTML='';$('#standings').innerHTML='';$('#stats').innerHTML='';$('#scorers').innerHTML='';$('#discipline').innerHTML='';return;}const allowed=state.tid&&list.some(([id])=>id===state.tid);if(!allowed)state.tid=list[0][0];const t=state.tournaments[state.tid];renderTournamentPicker();document.title=`${t.name||'Torneo'} ${t.season||''}`.trim();state.unsub.push(onValue(ref(db,`equipos/${state.tid}`),s=>{state.teams=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`partidos/${state.tid}`),s=>{state.matches=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`jugadores/${state.tid}`),s=>{state.players=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`noticias/${state.tid}`),s=>{state.news=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`patrocinadores/${state.tid}`),s=>{state.sponsors=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`sedes/${state.tid}`),s=>{state.venues=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`premios/${state.tid}`),s=>{state.awards=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`eventos/${state.tid}`),s=>{const next=s.val()||{}; if(!state.eventsReady){state.events=next;state.eventsReady=true;Object.entries(next).forEach(([mid,evs])=>Object.keys(evs||{}).forEach(eid=>state.seenEvents.add(`${mid}/${eid}`)));renderAll();return;} state.events=next;renderAll();detectNewEvents(next); })); startLiveClock();}
 function selectPublicTournament(tid){
   tid=String(tid||'');
   const list=publicTournaments();
@@ -216,3 +216,53 @@ function standingsFor(group,stageId){const out={};Object.entries(state.teams).fi
 function renderStandings(){const stage=firstGroupStage();if(!stage){$('#standings').innerHTML='<div class="empty">Este torneo no tiene una fase de grupos publicada.</div>';return;}const groups=[...new Set(Object.values(state.teams).map(t=>t.group).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'es'));$('#standings').innerHTML=groups.length?groups.map(g=>`<div class="standings-card"><div class="card-title"><div><span class="group-badge ${String(g).toUpperCase()==='B'?'group-b':''}">${esc(g)}</span><div><b>GRUPO ${esc(g)}</b><small>Todos contra todos</small></div></div><span>${esc(stage.name||'Fase de grupos')}</span></div><div class="table-wrap"><table><colgroup><col class="col-pos"><col class="col-team"><col><col><col><col><col><col></colgroup><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>DG</th><th>PTS</th></tr></thead><tbody>${standingsFor(g,stage.id).map((x,i)=>`<tr><td><span class="pos ${i<2?'qualified':''}">${i+1}</span></td><td><div class="table-team">${teamLogo(x.id,'team-logo tiny')}<b>${esc(x.name)}</b></div></td><td>${x.pj}</td><td>${x.pg}</td><td>${x.pe}</td><td>${x.pp}</td><td class="${x.dg>=0?'positive':'negative'}">${x.dg>0?'+':''}${x.dg}</td><td><strong>${x.pts}</strong></td></tr>`).join('')}</tbody></table></div></div>`).join(''):'<div class="empty">Asigna grupos a los equipos para mostrar posiciones.</div>';}
 function renderStats(){let goals=0,yellow=0,red=0,played=0;const players={};for(const evs of Object.values(state.events)){for(const e of Object.values(evs||{})){const type=String(e.type||'').toLowerCase();const raw=e.player||e.playerName||e.jugador;if(type==='gol')goals++;if(type==='amarilla')yellow++;if(type==='roja')red++;if(raw){const teamId=e.team||e.equipo||'';const k=normalize(raw)+'|'+teamId;if(!players[k])players[k]={name:String(raw).trim(),team:teamName(teamId),goals:0,yellow:0,red:0};if(type==='gol')players[k].goals++;if(type==='amarilla')players[k].yellow++;if(type==='roja')players[k].red++;}}}for(const m of Object.values(state.matches))if(String(m.status||'').toLowerCase()==='finalizado')played++;const list=Object.values(players);const top=list.filter(p=>p.goals>0).sort((a,b)=>b.goals-a.goals||a.name.localeCompare(b.name,'es')).slice(0,8);const disc=list.filter(p=>p.yellow||p.red).sort((a,b)=>(b.red+b.yellow)-(a.red+a.yellow)||a.name.localeCompare(b.name,'es')).slice(0,8);$('#stats').innerHTML=`<div class="stat-card"><span>⚽</span><b>${goals}</b><small>Goles</small></div><div class="stat-card"><span>🟨</span><b>${yellow}</b><small>Amarillas</small></div><div class="stat-card"><span>🟥</span><b>${red}</b><small>Rojas</small></div><div class="stat-card"><span>🏟️</span><b>${played}</b><small>Partidos jugados</small></div>`;$('#scorers').innerHTML=`<div class="list-card"><div class="card-title"><b>⚽ Goleadores</b><span>Acumulado</span></div><div class="leader-list">${top.length?top.map((p,i)=>`<div class="leader-row"><span class="leader-rank">${i+1}</span><div class="leader-person"><b>${esc(p.name)}</b><small>${esc(p.team)}</small></div><strong>${p.goals} ⚽</strong></div>`).join(''):'<div class="empty">Aún no hay goles registrados.</div>'}</div></div>`;$('#discipline').innerHTML=`<div class="list-card"><div class="card-title"><b>🟨 / 🟥 Disciplina</b><span>Acumulado</span></div><div class="leader-list">${disc.length?disc.map(p=>`<div class="leader-row"><div class="leader-person"><b>${esc(p.name)}</b><small>${esc(p.team)}</small></div><strong>🟨 ${p.yellow} &nbsp; 🟥 ${p.red}</strong></div>`).join(''):'<div class="empty">Aún no hay tarjetas registradas.</div>'}</div></div>`;}
 function renderFormat(t){const f=t.format||{};const list=Array.isArray(f.stages)?f.stages:[];$('#formatInfo').innerHTML=`<div><span class="kicker">FORMATO DEL TORNEO</span><h2>${esc(t.name||'Torneo')}</h2><p>${esc(t.description||'Formato configurable por torneo.')}</p></div><div class="format-list">${list.length?list.map((s,i)=>`<div class="format-step"><b>${i+1}. ${esc(s.name||'Fase')}</b><span>${s.type==='round_robin'?'Liga / grupos':s.type==='final'?'Final':'Eliminatoria'} · ${s.matchMode==='home_away'?'Ida y vuelta':'Partido único'}${s.qualifiersPerGroup?` · ${s.qualifiersPerGroup} clasificados/grupo`:''}</span></div>`).join(''):'<div class="format-step"><b>Formato aún no publicado</b><span>El administrador puede configurarlo.</span></div>'}</div>`;}
+
+function renderProPublic(){
+ const news=Object.values(state.news||{}).filter(x=>x&&x.published!==false).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,5);const awards=Object.values(state.awards||{}).slice(0,6);const sponsors=Object.values(state.sponsors||{}).slice(0,8);const venues=Object.values(state.venues||{}).slice(0,6);
+ const n=$('#publicNews'),a=$('#publicAwards'),sp=$('#publicSponsors'),v=$('#publicVenues');
+ if(n)n.innerHTML=news.length?news.map(x=>`<article class="public-news"><small>${esc(x.date||'')}</small><b>${esc(x.title||'')}</b><p>${esc(x.body||'').slice(0,180)}${String(x.body||'').length>180?'…':''}</p></article>`).join(''):'<div class="empty-mini">No hay noticias publicadas.</div>';
+ if(a)a.innerHTML=awards.length?awards.map(x=>`<div class="public-row"><span>🏅</span><div><b>${esc(x.name||'')}</b><small>${esc(x.winner||'')}${x.team?' · '+esc(teamName(x.team)):''}</small></div></div>`).join(''):'<div class="empty-mini">Premios aún no definidos.</div>';
+ if(sp)sp.innerHTML=sponsors.length?sponsors.map(x=>`<a class="sponsor-chip" href="${esc(x.url||'#')}" target="_blank" rel="noopener">${x.logo?`<img src="${esc(x.logo)}" alt="">`:'🤝'}<span><b>${esc(x.name||'')}</b><small>${esc(x.level||'')}</small></span></a>`).join(''):'<div class="empty-mini">Sin patrocinadores.</div>';
+ if(v)v.innerHTML=venues.length?venues.map(x=>`<div class="public-row"><span>🏟️</span><div><b>${esc(x.name||'')}</b><small>${esc([x.address,x.city].filter(Boolean).join(' · '))}</small></div>${x.mapUrl?`<a href="${esc(x.mapUrl)}" target="_blank" rel="noopener">Mapa</a>`:''}</div>`).join(''):'<div class="empty-mini">No hay sedes registradas.</div>';
+}
+
+
+async function submitPublicRegistration(e){
+  e.preventDefault();
+  const form=e.currentTarget;
+  const out=$('#publicRegistrationMsg');
+  const tournament=state.tournaments[state.tid]||{};
+  const team=$('#publicRegistrationTeam')?.value.trim()||'';
+  const delegate=$('#publicRegistrationDelegate')?.value.trim()||'';
+  const contact=$('#publicRegistrationContact')?.value.trim()||'';
+  const email=$('#publicRegistrationEmail')?.value.trim()||'';
+  const notes=$('#publicRegistrationNotes')?.value.trim()||'';
+  if(!state.tid || !tournament || tournament.status!=='active'){
+    if(out) out.textContent='Este campeonato no está disponible para recibir solicitudes.';
+    return;
+  }
+  if(!team){
+    if(out) out.textContent='Escribe el nombre del equipo.';
+    return;
+  }
+  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    if(out) out.textContent='El correo electrónico no es válido.';
+    return;
+  }
+  const id=`solicitud-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
+  const data={id,team,delegate,contact,email,notes,status:'pending',source:'public',tournamentId:state.tid,createdAt:new Date().toISOString()};
+  const btn=form.querySelector('button[type="submit"]');
+  if(btn){btn.disabled=true;btn.textContent='Enviando...';}
+  try{
+    await set(ref(db,`inscripciones/${state.tid}/${id}`),data);
+    form.reset();
+    if(out) out.textContent='✅ Solicitud enviada. El organizador la revisará.';
+  }catch(err){
+    console.error(err);
+    if(out) out.textContent='No se pudo enviar la solicitud. Intenta nuevamente.';
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='📝 Enviar solicitud';}
+  }
+}
+
+$('#publicRegistrationForm')?.addEventListener('submit',submitPublicRegistration);

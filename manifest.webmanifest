@@ -1,7 +1,7 @@
 {
   "name":"Campeonatos Ecuador",
   "short_name":"Campeonatos",
-  "start_url":"inicio.html",
+  "start_url":"inicio",
   "display":"standalone",
   "background_color":"#071522",
   "theme_color":"#071522",
