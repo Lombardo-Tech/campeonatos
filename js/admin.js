@@ -40,6 +40,7 @@ function init(){
   $('#finishMatch')?.addEventListener('click',finishLiveMatch);
   $('#addEvent').addEventListener('click',addEventRow);
   $('#paymentConfigForm')?.addEventListener('submit',savePaymentConfig);
+  document.querySelectorAll('[data-payment-tab]').forEach(btn=>btn.addEventListener('click',()=>switchPaymentTab(btn.dataset.paymentTab)));
   // Los listeners globales de pagos se inicializan después de verificar S.global.
   // Esto evita que init() intente decidir permisos antes de que Firebase Auth haya resuelto al usuario.
 }
@@ -232,6 +233,12 @@ $('#saveEvents')?.addEventListener('click',async()=>{if(!isAllowed())return msg(
 
 async function assignAdmin(e){e.preventDefault();if(!S.global)return msg('Solo el administrador global puede asignar accesos.');const uid=$('#adminUid').value.trim();if(!uid)return;await set(ref(db,`tournamentAdmins/${S.tid}/${uid}`),{role:$('#adminRole').value,email:$('#adminEmail').value.trim(),updatedAt:now()});e.target.reset();msg('Acceso asignado al torneo.');}
 function renderAdmins(){const box=$('#adminsTable');if(!box)return;box.innerHTML=Object.entries(S.admins).map(([uid,a])=>`<tr><td>${esc(uid)}</td><td>${esc(a.email||'-')}</td><td>${esc(a.role||'editor')}</td><td><button class="small-btn danger remove-admin" data-id="${esc(uid)}">Quitar</button></td></tr>`).join('')||'<tr><td colspan="4">No hay administradores asignados.</td></tr>';box.querySelectorAll('.remove-admin').forEach(b=>b.addEventListener('click',async()=>{if(S.global&&confirm('¿Quitar administrador?'))await remove(ref(db,`tournamentAdmins/${S.tid}/${b.dataset.id}`));}));}
+
+function switchPaymentTab(tab){
+  document.querySelectorAll('[data-payment-tab]').forEach(btn=>{const active=btn.dataset.paymentTab===tab;btn.classList.toggle('active',active);btn.setAttribute('aria-selected',active?'true':'false');});
+  document.querySelectorAll('[data-payment-panel]').forEach(panel=>{const active=panel.dataset.paymentPanel===tab;panel.classList.toggle('active',active);panel.hidden=!active;});
+}
+
 function setGlobalPayments(open){
   const show=!!open&&S.global;
   S.paymentsOpen=show;

@@ -377,3 +377,28 @@ body.modal-open{overflow:hidden}
 #pagos.global-settings-section .section-heading{margin-bottom:18px}
 #pagos.global-settings-section .table-card{margin-top:18px}
 @media(max-width:600px){.side-paid-badge{font-size:7px;padding:4px 6px}.global-payments-btn{margin-bottom:10px}}
+
+.payment-global-note{margin:7px 0 0;color:#8da5bb;font-size:11px;max-width:850px;line-height:1.6}.payment-tabs{display:flex;gap:8px;margin:0 0 18px;padding:5px;border:1px solid #20394d;border-radius:14px;background:#071624}.payment-tab{border:1px solid transparent;border-radius:10px;background:transparent;color:#8fa8bc;padding:11px 18px;font:inherit;font-size:11px;font-weight:1000;cursor:pointer}.payment-tab.active{background:rgba(157,247,45,.1);border-color:rgba(157,247,45,.3);color:var(--accent,#9df72d)}.payment-tab:hover{color:#eef6fd}.payment-tab-panel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.payment-tab-panel[hidden]{display:none}.payment-tab-panel .wide{grid-column:1/-1}.payment-tab-panel .section-heading{margin-bottom:0}.payment-tab-panel .table-card{overflow:auto}@media(max-width:700px){.payment-tab-panel{grid-template-columns:1fr}.payment-tab{flex:1}}
+
+/* V53 · Centro de pagos: transferencias + pendientes en paralelo y scroll unificado */
+html,.admin-page{scrollbar-width:thin;scrollbar-color:var(--accent) rgba(255,255,255,.045)}
+html::-webkit-scrollbar,.admin-page::-webkit-scrollbar{width:8px;height:8px}
+html::-webkit-scrollbar-track,.admin-page::-webkit-scrollbar-track{background:rgba(255,255,255,.035);border-radius:999px}
+html::-webkit-scrollbar-thumb,.admin-page::-webkit-scrollbar-thumb{background:var(--accent);border-radius:999px;border:2px solid transparent;background-clip:padding-box}
+html::-webkit-scrollbar-thumb:hover,.admin-page::-webkit-scrollbar-thumb:hover{background:#b4ff5c;border:2px solid transparent;background-clip:padding-box}
+.payment-transfer-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:18px;align-items:start}
+.payment-config-column,.payment-pending-column,.payment-payphone-card{min-width:0}
+.payment-config-column{padding:18px;border:1px solid var(--line);border-radius:18px;background:rgba(8,24,37,.72)}
+.payment-pending-column{padding:18px;border:1px solid var(--line);border-radius:18px;background:rgba(8,24,37,.72)}
+.payment-bank-form{margin-top:15px}
+.payment-pending-column .compact-heading{margin-top:0!important;margin-bottom:14px}
+.payment-side-heading h3{font-size:21px}
+.payment-pending-table{max-height:560px;overflow:auto;border-radius:14px}
+.payment-pending-table table{min-width:760px}
+.payment-payphone-card{max-width:900px;padding:20px;border:1px solid var(--line);border-radius:18px;background:rgba(8,24,37,.72)}
+.payphone-form{margin-top:15px}
+.payment-payphone-card .actions{margin-top:15px}
+.payment-tab-panel{display:block}
+.payment-tab-panel[hidden]{display:none}
+@media(max-width:1050px){.payment-transfer-layout{grid-template-columns:1fr}.payment-pending-table{max-height:430px}}
+@media(max-width:700px){.payment-tabs{overflow-x:auto}.payment-tab{white-space:nowrap}.payment-config-column,.payment-pending-column,.payment-payphone-card{padding:14px}.payment-pending-table{max-height:500px}.payment-pending-table table{min-width:700px}}
