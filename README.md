@@ -23,3 +23,6 @@ V33: gestión de primer tiempo, descanso, segundo tiempo y tiempo adicional en p
 - Cada equipo aparece como máximo una vez por jornada.
 - La Jornada 1 existente se conserva y no se sobrescribe.
 - Para 8 equipos por grupo se generan 7 jornadas y 28 partidos por grupo.
+
+
+V45: corrección de permisos de loadAccess y lectura segura de tournamentAdmins.

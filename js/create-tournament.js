@@ -1,0 +1,10 @@
+import { db } from './firebase.js';
+import { ref, set } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
+import { $, guardPage, uidKey } from './saas.js';
+import { loadEcuador, provinceNames, findProvince, findCanton, fillSelect } from './locations.js';
+let uid='';
+await loadEcuador();fillSelect($('#province'),provinceNames(),'Selecciona provincia');fillSelect($('#canton'),[],'Selecciona cantón');fillSelect($('#parish'),[],'Selecciona parroquia');
+$('#province').addEventListener('change',()=>{const p=findProvince($('#province').value);fillSelect($('#canton'),(p?.cantones||[]).map(c=>c.nombre).sort((a,b)=>a.localeCompare(b,'es')),'Selecciona cantón');fillSelect($('#parish'),[],'Selecciona parroquia');});
+$('#canton').addEventListener('change',()=>{const c=findCanton($('#province').value,$('#canton').value);fillSelect($('#parish'),(c?.parroquias||[]).slice().sort((a,b)=>a.localeCompare(b,'es')),'Selecciona parroquia');});
+guardPage({onUser:u=>uid=u.uid});
+$('#tournamentForm').addEventListener('submit',async e=>{e.preventDefault();const msg=$('#msg');try{if(!uid)throw new Error('Sesión no disponible.');const id=uidKey('torneo'),name=$('#name').value.trim();if(!$('#province').value||!$('#canton').value||!$('#parish').value)throw new Error('Completa provincia, cantón y parroquia.');const slug=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')+'-'+id.slice(-5);await set(ref(db,`tournaments/${id}`),{id,name,slug,season:$('#season').value.trim(),country:'Ecuador',province:$('#province').value,canton:$('#canton').value,parish:$('#parish').value,description:$('#description').value.trim(),logoUrl:$('#logoUrl').value.trim(),ownerUid:uid,paymentStatus:'pending',status:'draft',createdAt:Date.now(),priceUsd:20});msg.textContent='Torneo guardado. Ahora podrás continuar con el pago desde tu cuenta.';setTimeout(()=>location.href='cuenta.html',900);}catch(err){msg.textContent=err?.message||'No se pudo guardar el torneo.';}});

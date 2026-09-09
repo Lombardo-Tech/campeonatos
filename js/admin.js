@@ -3,16 +3,17 @@ import { guardAdmin, signOut } from './auth.js';
 import { ref, get, set, update, remove, onValue } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
 import { esc, slug, now, timeLabel, imageFileToDataUrl } from './common.js';
 
-const S={user:null,global:false,accessLoaded:false,allowedTids:new Set(),tournaments:{},tid:'',teams:{},matches:{},events:{},admins:{},stageUnsub:[],dateFilter:'all'};
+const S={user:null,global:false,accessLoaded:false,globalListenersStarted:false,allowedTids:new Set(),tournaments:{},tid:'',isNew:false,paymentsOpen:false,teams:{},matches:{},events:{},admins:{},stageUnsub:[],dateFilter:'all',paymentRequests:{},paymentPublic:{},paymentPayphone:{}};
 const $=s=>document.querySelector(s);
 const key=(prefix='id')=>`${slug(prefix)||'id'}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 const stages=()=>Array.isArray(S.tournaments[S.tid]?.format?.stages)?S.tournaments[S.tid].format.stages:[];
 const currentTournament=()=>S.tournaments[S.tid]||{};
-const isAllowed=()=>S.global||!!S.admins[S.user?.uid];
+const isAllowed=()=>S.global||!!S.admins[S.user?.uid]||currentTournament()?.ownerUid===S.user?.uid;
 
 function init(){
   $('#adminLogout').addEventListener('click',()=>signOut(auth));
   $('#newTournament').addEventListener('click',newTournament);
+  $('#globalPayments')?.addEventListener('click',toggleGlobalPayments);
   $('#addStage').addEventListener('click',()=>addStageRow());
   $('#tournamentForm').addEventListener('submit',saveTournament);
   $('#teamForm').addEventListener('submit',saveTeam);
@@ -38,20 +39,57 @@ function init(){
   $('#startSecondHalf')?.addEventListener('click',startSecondHalf);
   $('#finishMatch')?.addEventListener('click',finishLiveMatch);
   $('#addEvent').addEventListener('click',addEventRow);
+  $('#paymentConfigForm')?.addEventListener('submit',savePaymentConfig);
+  // Los listeners globales de pagos se inicializan después de verificar S.global.
+  // Esto evita que init() intente decidir permisos antes de que Firebase Auth haya resuelto al usuario.
 }
 
 function boot(user){S.user=user;onValue(ref(db,'tournaments'),snap=>{S.tournaments=snap.val()||{};renderTournamentList();if(!S.tid)selectFirst();else if(S.tournaments[S.tid])renderTournamentDetails();});loadAccess();}
-async function loadAccess(){const uid=S.user.uid;const [a,b,all] = await Promise.all([get(ref(db,`globalAdmins/${uid}`)),get(ref(db,`admins/${uid}`)),get(ref(db,'tournamentAdmins'))]);S.global=a.val()===true||b.val()===true;S.allowedTids=new Set();if(!S.global){Object.entries(all.val()||{}).forEach(([tid,members])=>{if(members&&members[uid])S.allowedTids.add(tid);});}S.accessLoaded=true;renderTournamentList();if(!S.tid||!canViewTournament(S.tid))selectFirst();else selectTournament(S.tid);}
-function canViewTournament(tid){return S.global||S.allowedTids.has(tid);}
+async function loadAccess(){
+  const uid=S.user.uid;
+  const a=await get(ref(db,`globalAdmins/${uid}`));
+  S.global=a.val()===true;
+  S.allowedTids=new Set();
+
+  if(S.global && !S.globalListenersStarted){
+    S.globalListenersStarted=true;
+    onValue(ref(db,'paymentRequests'),snap=>{S.paymentRequests=snap.val()||{};renderPaymentRequests();});
+    onValue(ref(db,'paymentConfig/public'),snap=>{S.paymentPublic=snap.val()||{};renderPaymentConfig();});
+    onValue(ref(db,'paymentConfig/payphone'),snap=>{S.paymentPayphone=snap.val()||{};renderPaymentConfig();});
+  }
+
+  // El Global Admin puede leer todas las asignaciones.
+  // Un usuario normal solo consulta su propia entrada por torneo.
+  if(S.global){
+    const all=(await get(ref(db,'tournamentAdmins'))).val()||{};
+    Object.keys(all).forEach(tid=>S.allowedTids.add(tid));
+  }else{
+    const ts=await get(ref(db,'tournaments'));
+    S.tournaments=ts.val()||S.tournaments||{};
+    const tids=Object.keys(S.tournaments);
+    const checks=await Promise.all(tids.map(tid=>get(ref(db,`tournamentAdmins/${tid}/${uid}`)).catch(()=>null)));
+    checks.forEach((snap,i)=>{if(snap?.exists())S.allowedTids.add(tids[i]);});
+  }
+  S.tournaments=S.tournaments||{};Object.entries(S.tournaments).forEach(([tid,t])=>{if(t?.ownerUid===uid)S.allowedTids.add(tid);});S.accessLoaded=true;
+  document.querySelectorAll('.global-only-section').forEach(el=>{if(el.id!=='pagos')el.style.display=S.global?'':'none';});
+  if($('#globalPayments'))$('#globalPayments').style.display=S.global?'flex':'none';
+  if($('#pagos'))$('#pagos').style.display='none';
+  renderTournamentList();
+  if(S.global){renderPaymentConfig();renderPaymentRequests();}
+  if(!S.tid||!canViewTournament(S.tid))selectFirst();else selectTournament(S.tid);}
+function canViewTournament(tid){return S.global||S.allowedTids.has(tid)||S.tournaments[tid]?.ownerUid===S.user?.uid;}
 function visibleTournamentEntries(){return Object.entries(S.tournaments).filter(([id])=>canViewTournament(id));}
 function selectFirst(){const ids=visibleTournamentEntries().map(([id])=>id);if(ids.length)selectTournament(ids[0]);else newTournament();}
 function clearSubs(){S.stageUnsub.forEach(fn=>{try{fn();}catch{}});S.stageUnsub=[];}
-function selectTournament(tid){if(!canViewTournament(tid))return msg('Este torneo no está asignado a tu usuario.');clearSubs();S.tid=tid;const t=currentTournament();if(!t)return;onValue(ref(db,`tournamentAdmins/${tid}`),s=>{S.admins=s.val()||{};renderAdmins();});onValue(ref(db,`equipos/${tid}`),s=>{S.teams=s.val()||{};renderTeams();refreshMatchTeams();renderDashboard();});onValue(ref(db,`partidos/${tid}`),async s=>{S.matches=s.val()||{};const first=stages()[0];if(first){const fixes={};Object.entries(S.matches).forEach(([id,m])=>{if(!m.stageId){fixes[`partidos/${tid}/${id}/stageId`]=first.id;fixes[`partidos/${tid}/${id}/phase`]=first.name;}});if(Object.keys(fixes).length&&isAllowed())await update(ref(db),fixes);}renderMatches();renderDashboard();renderStageOverview();});onValue(ref(db,`eventos/${tid}`),s=>{S.events=s.val()||{};});renderTournamentDetails();renderTournamentList();}
+function selectTournament(tid){if(!canViewTournament(tid))return msg('Este torneo no está asignado a tu usuario.');clearSubs();S.tid=tid;S.isNew=false;setGlobalPayments(false);const t=currentTournament();if(!t)return;
+  if(S.global){onValue(ref(db,`tournamentAdmins/${tid}`),s=>{S.admins=s.val()||{};renderAdmins();});}
+  else{get(ref(db,`tournamentAdmins/${tid}/${S.user.uid}`)).then(s=>{if(s.exists())S.admins[S.user.uid]=s.val();}).catch(()=>{});}
+  onValue(ref(db,`equipos/${tid}`),s=>{S.teams=s.val()||{};renderTeams();refreshMatchTeams();renderDashboard();});onValue(ref(db,`partidos/${tid}`),async s=>{S.matches=s.val()||{};const first=stages()[0];if(first){const fixes={};Object.entries(S.matches).forEach(([id,m])=>{if(!m.stageId){fixes[`partidos/${tid}/${id}/stageId`]=first.id;fixes[`partidos/${tid}/${id}/phase`]=first.name;}});if(Object.keys(fixes).length&&isAllowed())await update(ref(db),fixes);}renderMatches();renderDashboard();renderStageOverview();});onValue(ref(db,`eventos/${tid}`),s=>{S.events=s.val()||{};});renderTournamentDetails();renderTournamentList();}
 
 function setLogoPreview(sel,url){const box=$(sel);if(!box)return;box.innerHTML=url?`<img src="${esc(url)}" alt="Vista previa" onerror="this.parentElement.innerHTML='<span>⚽</span>'">`:'<span>⚽</span>';}
 function previewFile(inputSel,previewSel){const file=$(inputSel)?.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=()=>setLogoPreview(previewSel,reader.result);reader.readAsDataURL(file);}
-function renderTournamentList(){const box=$('#tournamentList');if(!box)return;const entries=visibleTournamentEntries();box.innerHTML=entries.map(([id,t])=>`<button class="side-tournament ${id===S.tid?'active':''}" data-id="${esc(id)}">${t.logoUrl?`<span class="mini-logo"><img src="${esc(t.logoUrl)}" alt=""></span>`:'<span class="mini-logo fallback">⚽</span>'}<div><b>${esc(t.name||id)}</b><small>${esc(t.season||'')}</small></div></button>`).join('')||'<div class="empty">No hay torneos asignados.</div>';box.querySelectorAll('[data-id]').forEach(b=>b.addEventListener('click',()=>selectTournament(b.dataset.id)));if($('#newTournament'))$('#newTournament').style.display=S.global?'inline-flex':'none';if($('#deleteTournament'))$('#deleteTournament').style.display=S.global?'inline-flex':'none';}
-function renderTournamentDetails(){const t=currentTournament();if(!t){$('#selectedName').textContent='Nuevo torneo';return;}$('#selectedName').textContent=`${t.name||'Torneo'} ${t.season||''}`.trim();$('#pageTitle').textContent=t.name||'Administración';$('#tId').value=S.tid;$('#tName').value=t.name||'';$('#tSeason').value=t.season||'';$('#tLocation').value=t.location||'';$('#tStatus').value=t.status||'active';$('#tLogo').value=t.logoUrl&&/^https?:\/\//i.test(t.logoUrl)?t.logoUrl:'';$('#tLogoStored').value=t.logoUrl||'';setLogoPreview('#tLogoPreview',t.logoUrl||'');$('#tLogoFile').value='';$('#tDescription').value=t.description||'';const f=t.format||{};$('#fGroups').value=f.groups||1;$('#fHalfMinutes').value=f.halfMinutes??25;$('#fTeams').value=f.teamsPerGroup||8;$('#fWin').value=f.points?.win??3;$('#fDraw').value=f.points?.draw??1;renderStageBuilder(f.stages||[]);renderStageSelect();renderStageOverview();}
+function renderTournamentList(){const box=$('#tournamentList');if(!box)return;const entries=visibleTournamentEntries();box.innerHTML=entries.map(([id,t])=>`<button class="side-tournament ${id===S.tid?'active':''}" data-id="${esc(id)}">${t.logoUrl?`<span class="mini-logo"><img src="${esc(t.logoUrl)}" alt=""></span>`:'<span class="mini-logo fallback">⚽</span>'}<div><b>${esc(t.name||id)}</b><small>${esc(t.season||'')}</small></div>${t.paymentStatus==='paid'?'<em class="side-paid-badge">PAGADO</em>':''}</button>`).join('')||'<div class="empty">No hay torneos asignados.</div>';box.querySelectorAll('[data-id]').forEach(b=>b.addEventListener('click',()=>selectTournament(b.dataset.id)));if($('#newTournament'))$('#newTournament').style.display=S.global?'inline-flex':'none';if($('#deleteTournament'))$('#deleteTournament').style.display=S.global?'inline-flex':'none';}
+function renderTournamentDetails(){const t=currentTournament();if(!t){$('#selectedName').textContent='Nuevo torneo';return;}$('#selectedName').textContent=`${t.name||'Torneo'} ${t.season||''}`.trim();if(t.paymentStatus==='paid')$('#selectedName').textContent+=' · PAGADO';$('#pageTitle').textContent=t.name||'Administración';$('#tId').value=S.tid;$('#tName').value=t.name||'';$('#tSeason').value=t.season||'';$('#tLocation').value=t.location||'';$('#tStatus').value=t.status||'active';$('#tLogo').value=t.logoUrl&&/^https?:\/\//i.test(t.logoUrl)?t.logoUrl:'';$('#tLogoStored').value=t.logoUrl||'';setLogoPreview('#tLogoPreview',t.logoUrl||'');$('#tLogoFile').value='';$('#tDescription').value=t.description||'';const f=t.format||{};$('#fGroups').value=f.groups||1;$('#fHalfMinutes').value=f.halfMinutes??25;$('#fTeams').value=f.teamsPerGroup||8;$('#fWin').value=f.points?.win??3;$('#fDraw').value=f.points?.draw??1;renderStageBuilder(f.stages||[]);renderStageSelect();renderStageOverview();}
 function defaultStages(){return [
 {id:'grupos',name:'Fase de grupos',type:'round_robin',matchMode:'single',legs:1,qualifiersPerGroup:2},
 {id:'r8',name:'Ronda de 8',type:'knockout',matchMode:'home_away',legs:2,qualifiersPerGroup:0},
@@ -59,7 +97,29 @@ function defaultStages(){return [
 {id:'r2',name:'Ronda de 2',type:'knockout',matchMode:'single',legs:1,qualifiersPerGroup:0},
 {id:'final',name:'Final',type:'final',matchMode:'single',legs:1,qualifiersPerGroup:0}
 ];}
-function newTournament(){S.tid='';$('#selectedName').textContent='Nuevo torneo';$('#pageTitle').textContent='Crear nuevo torneo';$('#tournamentForm').reset();$('#tLogoStored').value='';$('#tLogoFile').value='';setLogoPreview('#tLogoPreview','');$('#tStatus').value='active';$('#fGroups').value=2;$('#fHalfMinutes').value=25;$('#fTeams').value=8;$('#fWin').value=3;$('#fDraw').value=1;renderStageBuilder(defaultStages());renderStageSelect();window.scrollTo({top:0,behavior:'smooth'});}
+function newTournament(){
+  clearSubs();
+  S.tid='';S.isNew=true;S.teams={};S.matches={};S.events={};S.admins={};S.dateFilter='all';
+  setGlobalPayments(false);
+  $('#selectedName').textContent='Nuevo torneo';
+  $('#pageTitle').textContent='Crear nuevo torneo';
+  $('#tournamentForm').reset();
+  $('#teamForm').reset();
+  $('#matchForm').reset();
+  $('#tId').value='';$('#teamId').value='';$('#matchId').value='';
+  $('#tLogoStored').value='';$('#tLogoFile').value='';setLogoPreview('#tLogoPreview','');
+  $('#teamLogoStored').value='';$('#teamLogoFile').value='';setLogoPreview('#teamLogoPreview','');
+  $('#tStatus').value='draft';
+  $('#fGroups').value='';$('#fHalfMinutes').value='';$('#fTeams').value='';$('#fWin').value='';$('#fDraw').value='';
+  renderStageBuilder([]);renderStageSelect();
+  renderTeams();renderMatches();renderDashboard();renderStageOverview();renderAdmins();
+  if($('#adminDateFilters'))$('#adminDateFilters').innerHTML='';
+  if($('#resetDateOptions'))$('#resetDateOptions').innerHTML='';
+  if($('#resetDateCurrent'))$('#resetDateCurrent').innerHTML='<b>Selecciona una fecha...</b><small>Elige la jornada que deseas reiniciar</small>';
+  $('#tournamentWorkspace').style.display='block';
+  $('.hero-actions').style.display=S.global?'flex':'';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
 function stageRowHtml(s,i){return `<div class="stage-row" data-index="${i}"><div class="stage-number">${i+1}</div><div class="stage-fields"><label>Nombre<input class="stage-name" value="${esc(s.name||`Fase ${i+1}`)}"></label><label>Tipo<select class="stage-type"><option value="round_robin" ${s.type==='round_robin'?'selected':''}>Liga / grupos</option><option value="knockout" ${s.type==='knockout'?'selected':''}>Eliminatoria</option><option value="final" ${s.type==='final'?'selected':''}>Final</option></select></label><label>Modalidad<select class="stage-mode"><option value="single" ${s.matchMode==='single'?'selected':''}>Partido único</option><option value="home_away" ${s.matchMode==='home_away'?'selected':''}>Ida y vuelta</option></select></label><label>Partidos por cruce<input class="stage-legs" type="number" min="1" max="2" value="${Number(s.legs||1)}"></label><label>Clasificados por grupo<input class="stage-qualifiers" type="number" min="0" max="50" value="${Number(s.qualifiersPerGroup||0)}" ${s.type==='round_robin'?'':'disabled'}></label></div><button type="button" class="small-btn danger remove-stage">×</button></div>`;}
 function renderStageBuilder(list){const box=$('#stageBuilder');box.innerHTML=(list.length?list:defaultStages()).map(stageRowHtml).join('');box.querySelectorAll('.stage-type').forEach(sel=>sel.addEventListener('change',()=>{const row=sel.closest('.stage-row');const q=row.querySelector('.stage-qualifiers');q.disabled=sel.value!=='round_robin';if(sel.value!=='round_robin')q.value=0;}));box.querySelectorAll('.remove-stage').forEach(b=>b.addEventListener('click',()=>{b.closest('.stage-row').remove();renumberStages();}));}
 function addStageRow(){const box=$('#stageBuilder');const i=box.querySelectorAll('.stage-row').length;box.insertAdjacentHTML('beforeend',stageRowHtml({name:`Fase ${i+1}`,type:'knockout',matchMode:'single',legs:1,qualifiersPerGroup:0},i));const row=box.lastElementChild;row.querySelector('.remove-stage').addEventListener('click',()=>{row.remove();renumberStages();});row.querySelector('.stage-type').addEventListener('change',()=>{const q=row.querySelector('.stage-qualifiers');q.disabled=row.querySelector('.stage-type').value!=='round_robin';if(q.disabled)q.value=0;});}
@@ -157,11 +217,11 @@ function toggleLiveStartField(){
 function openResult(id){const m=S.matches[id];if(!m)return;$('#resultMatch').value=id;$('#resultTitle').textContent=`${S.teams[m.local]?.name||m.local} vs ${S.teams[m.visitor]?.name||m.visitor}`;$('#resultHome').value=m.homeScore||0;$('#resultAway').value=m.awayScore||0;$('#resultStatus').value=m.status||'programado';$('#liveStartMinute').value=m.liveStartMinute??'';$('#livePeriod').value=m.livePeriod||'first';$('#addedTime').value=m.liveAddedTime??'';renderEvents(id);toggleLiveStartField();$('#resultModal').classList.add('open');}
 function resetResultModal(){const form=$('#resultForm');if(form)form.reset();$('#resultMatch').value='';$('#resultTitle').textContent='Resultado';$('#eventEditor').innerHTML='';if($('#livePeriod'))$('#livePeriod').value='first';if($('#addedTime'))$('#addedTime').value='';toggleLiveStartField();}
 function closeResult(reset=true){$('#resultModal').classList.remove('open');if(reset)resetResultModal();}
-async function saveResult(e){e.preventDefault();if(!isAllowed())return msg('No tienes permisos para actualizar resultados.');const id=$('#resultMatch').value;if(!id)return msg('Selecciona un partido.');const previous=S.matches[id]||{};const status=$('#resultStatus').value;const patch={homeScore:Number($('#resultHome').value||0),awayScore:Number($('#resultAway').value||0),status,updatedAt:now()};const period=$('#livePeriod')?.value||previous.livePeriod||'first';const added=Math.max(0,Math.min(30,Number($('#addedTime')?.value||0)||0));if(status==='en juego'){const wasLive=String(previous.status||'').toLowerCase()==='en juego'&&previous.liveStartedAt;patch.liveStartedAt=wasLive?previous.liveStartedAt:now();const raw=$('#liveStartMinute').value.trim();const halfMinutes=Math.max(1,Math.min(60,Number(previous.liveHalfMinutes??currentTournament().format?.halfMinutes??25)||25));patch.liveHalfMinutes=halfMinutes;patch.liveStartMinute=raw===''?(period==='second'?halfMinutes+1:0):Math.max(0,Math.min(130,Number(raw)||0));patch.livePeriod=period;patch.liveAddedTime=added;patch.periodStartedAt=wasLive?(previous.periodStartedAt||previous.liveStartedAt):now();}else if(status==='descanso'){patch.liveStartedAt=null;patch.periodStartedAt=null;patch.livePeriod='second';patch.liveStartMinute=Math.max(1,Number(previous.liveHalfMinutes??currentTournament().format?.halfMinutes??25)||25);patch.liveAddedTime=added;patch.firstHalfFinishedAt=previous.firstHalfFinishedAt||now();}else{patch.liveStartedAt=null;patch.periodStartedAt=null;patch.liveStartMinute=null;patch.liveAddedTime=null;}await update(ref(db,`partidos/${S.tid}/${id}`),patch);closeResult(true);msg('Resultado actualizado.');}
+async function saveResult(e){e.preventDefault();if(!isAllowed())return msg('No tienes permisos para actualizar resultados.');const id=$('#resultMatch').value;if(!id)return msg('Selecciona un partido.');const previous=S.matches[id]||{};const status=$('#resultStatus').value;const patch={homeScore:Number($('#resultHome').value||0),awayScore:Number($('#resultAway').value||0),status,updatedAt:now()};const period=$('#livePeriod')?.value||previous.livePeriod||'first';const added=Math.max(0,Math.min(30,Number($('#addedTime')?.value||0)||0));if(status==='en juego'){const wasLive=String(previous.status||'').toLowerCase()==='en juego'&&previous.liveStartedAt;patch.liveStartedAt=wasLive?previous.liveStartedAt:now();const raw=$('#liveStartMinute').value.trim();const halfMinutes=Math.max(1,Math.min(60,Number(previous.liveHalfMinutes??currentTournament().format?.halfMinutes??25)||25));patch.liveHalfMinutes=halfMinutes;patch.liveStartMinute=raw===''?(period==='second'?halfMinutes+1:0):Math.max(0,Math.min(130,Number(raw)||0));patch.livePeriod=period;patch.liveAddedTime=added;patch.periodStartedAt=wasLive?(previous.periodStartedAt||previous.liveStartedAt):now();}else if(status==='descanso'){patch.liveStartedAt=null;patch.periodStartedAt=null;patch.livePeriod='second';patch.liveStartMinute=Math.max(1,Number(previous.liveHalfMinutes??currentTournament().format?.halfMinutes??25)||25);patch.liveAddedTime=added;patch.firstHalfFinishedAt=previous.firstHalfFinishedAt||now();}else{patch.liveStartedAt=null;patch.periodStartedAt=null;patch.liveStartMinute=null;patch.liveAddedTime=null;}await update(ref(db,`partidos/${S.tid}/${id}`),patch);if(status==='finalizado'){const m=previous;const finalStage=stages().find(s=>s.type==='final'||String(s.id||'').toLowerCase()==='final');if(finalStage&&m.stageId===finalStage.id){await update(ref(db,`tournaments/${S.tid}`),{status:'finished',finishedAt:now(),championTeamId:Number(patch.homeScore||0)>Number(patch.awayScore||0)?m.local:Number(patch.awayScore||0)>Number(patch.homeScore||0)?m.visitor:null});}}closeResult(true);msg('Resultado actualizado.');}
 
 async function finishFirstHalf(){const id=$('#resultMatch').value;if(!id)return;const m=S.matches[id]||{};if(String(m.status||'').toLowerCase()!=='en juego')return msg('El partido no está en juego.');if(($('#livePeriod')?.value||m.livePeriod||'first')!=='first')return msg('El partido ya está en el segundo tiempo.');const added=Math.max(0,Math.min(30,Number($('#addedTime')?.value||0)||0));const minute=liveMinuteLabelForAdmin({...m,liveAddedTime:added});if(!confirm(`¿Terminar el primer tiempo en ${minute}${added?` con +${added}`:''}?`))return;await update(ref(db,`partidos/${S.tid}/${id}`),{status:'descanso',liveStartedAt:null,periodStartedAt:null,livePeriod:'second',liveStartMinute:Math.max(1,Number(m.liveHalfMinutes??currentTournament().format?.halfMinutes??25)||25)+1,liveHalfMinutes:Math.max(1,Number(m.liveHalfMinutes??currentTournament().format?.halfMinutes??25)||25),firstHalfMinute:minute,firstHalfAddedTime:added,firstHalfFinishedAt:now(),liveAddedTime:0,updatedAt:now()});$('#resultStatus').value='descanso';$('#livePeriod').value='second';$('#addedTime').value='';toggleLiveStartField();msg('Primer tiempo terminado. Partido en descanso.');}
 async function startSecondHalf(){const id=$('#resultMatch').value;if(!id)return;const m=S.matches[id]||{};if(String(m.status||'').toLowerCase()!=='descanso')return msg('El partido no está en descanso.');await update(ref(db,`partidos/${S.tid}/${id}`),{status:'en juego',liveStartedAt:now(),periodStartedAt:now(),livePeriod:'second',liveStartMinute:Math.max(1,Number(m.liveHalfMinutes??currentTournament().format?.halfMinutes??25)||25)+1,liveHalfMinutes:Math.max(1,Number(m.liveHalfMinutes??currentTournament().format?.halfMinutes??25)||25),liveAddedTime:0,updatedAt:now()});$('#resultStatus').value='en juego';$('#livePeriod').value='second';$('#liveStartMinute').value=Math.max(1,Number(m.liveHalfMinutes??currentTournament().format?.halfMinutes??25)||25)+1;$('#addedTime').value='';toggleLiveStartField();msg('Segundo tiempo iniciado.');}
-async function finishLiveMatch(){const id=$('#resultMatch').value;if(!id)return;const m=S.matches[id]||{};if(String(m.status||'').toLowerCase()!=='en juego')return msg('El partido no está en juego.');const added=Math.max(0,Math.min(30,Number($('#addedTime')?.value||0)||0));const minute=liveMinuteLabelForAdmin({...m,liveAddedTime:added});if(!confirm(`¿Finalizar el partido en ${minute}${added?` con +${added}`:''}?`))return;await update(ref(db,`partidos/${S.tid}/${id}`),{status:'finalizado',liveStartedAt:null,periodStartedAt:null,liveAddedTime:null,secondHalfMinute:minute,secondHalfAddedTime:added,finishedAt:now(),updatedAt:now()});closeResult(true);msg('Partido finalizado.');}
+async function finishLiveMatch(){const id=$('#resultMatch').value;if(!id)return;const m=S.matches[id]||{};if(String(m.status||'').toLowerCase()!=='en juego')return msg('El partido no está en juego.');const added=Math.max(0,Math.min(30,Number($('#addedTime')?.value||0)||0));const minute=liveMinuteLabelForAdmin({...m,liveAddedTime:added});if(!confirm(`¿Finalizar el partido en ${minute}${added?` con +${added}`:''}?`))return;await update(ref(db,`partidos/${S.tid}/${id}`),{status:'finalizado',liveStartedAt:null,periodStartedAt:null,liveAddedTime:null,secondHalfMinute:minute,secondHalfAddedTime:added,finishedAt:now(),updatedAt:now()});const finalStage=stages().find(s=>s.type==='final'||String(s.id||'').toLowerCase()==='final');if(finalStage&&m.stageId===finalStage.id){const hs=Number(m.homeScore||0),as=Number(m.awayScore||0);await update(ref(db,`tournaments/${S.tid}`),{status:'finished',finishedAt:now(),championTeamId:hs>as?m.local:as>hs?m.visitor:null});}closeResult(true);msg('Partido finalizado.');}
 function liveMinuteForAdmin(m){if(!m)return 0;const base=Math.max(0,Number(m.liveStartMinute??0));const started=Date.parse(m.periodStartedAt||m.liveStartedAt||'');const elapsed=Number.isFinite(started)?Math.max(0,Math.floor((Date.now()-started)/60000)):0;return base+elapsed;}
 function liveMinuteLabelForAdmin(m){if(!m)return '0′';const n=liveMinuteForAdmin(m);const half=Math.max(1,Number(m.liveHalfMinutes??currentTournament().format?.halfMinutes??25)||25);const period=String(m.livePeriod||'first').toLowerCase();const added=Math.max(0,Number(m.liveAddedTime||0));const threshold=period==='second'?half*2:half;if(n>threshold && added>0)return `${threshold}+${Math.min(n-threshold,added)}′`;return `${Math.min(n,threshold+added)}′`;}
 function addEventRow(){const id=$('#resultMatch').value;const row=document.createElement('div');row.className='event-edit-row';row.dataset.eid='';row.innerHTML='<select class="ev-type"><option value="gol">⚽ Gol</option><option value="amarilla">🟨 Amarilla</option><option value="roja">🟥 Roja</option></select><select class="ev-team"></select><input class="ev-player" placeholder="Jugador"><input class="ev-minute" type="number" min="0" max="130" placeholder="Min"><button type="button" class="small-btn danger">×</button>';$('#eventEditor').appendChild(row);row.querySelector('.ev-team').innerHTML=teamOptionsForMatch(id);row.querySelector('button').addEventListener('click',()=>row.remove());if($('#resultStatus').value==='en juego' && !row.querySelector('.ev-minute').value){row.querySelector('.ev-minute').value=liveMinuteForAdmin(S.matches[id]);}row.querySelector('.ev-player').focus();}
@@ -172,6 +232,50 @@ $('#saveEvents')?.addEventListener('click',async()=>{if(!isAllowed())return msg(
 
 async function assignAdmin(e){e.preventDefault();if(!S.global)return msg('Solo el administrador global puede asignar accesos.');const uid=$('#adminUid').value.trim();if(!uid)return;await set(ref(db,`tournamentAdmins/${S.tid}/${uid}`),{role:$('#adminRole').value,email:$('#adminEmail').value.trim(),updatedAt:now()});e.target.reset();msg('Acceso asignado al torneo.');}
 function renderAdmins(){const box=$('#adminsTable');if(!box)return;box.innerHTML=Object.entries(S.admins).map(([uid,a])=>`<tr><td>${esc(uid)}</td><td>${esc(a.email||'-')}</td><td>${esc(a.role||'editor')}</td><td><button class="small-btn danger remove-admin" data-id="${esc(uid)}">Quitar</button></td></tr>`).join('')||'<tr><td colspan="4">No hay administradores asignados.</td></tr>';box.querySelectorAll('.remove-admin').forEach(b=>b.addEventListener('click',async()=>{if(S.global&&confirm('¿Quitar administrador?'))await remove(ref(db,`tournamentAdmins/${S.tid}/${b.dataset.id}`));}));}
+function setGlobalPayments(open){
+  const show=!!open&&S.global;
+  S.paymentsOpen=show;
+  const panel=$('#pagos'),workspace=$('#tournamentWorkspace'),actions=$('.hero-actions');
+  if(panel)panel.style.display=show?'block':'none';
+  if(workspace)workspace.style.display=show?'none':'block';
+  if(actions)actions.style.display=show?'none':(S.global?'flex':'');
+  if(show){
+    $('#selectedName').textContent='Centro de pagos';
+    $('#pageTitle').textContent='Pagos de la plataforma';
+    window.scrollTo({top:0,behavior:'smooth'});
+  }else if(S.tid&&!S.isNew){
+    renderTournamentDetails();
+  }else if(S.isNew){
+    $('#selectedName').textContent='Nuevo torneo';
+    $('#pageTitle').textContent='Crear nuevo torneo';
+  }
+}
+function toggleGlobalPayments(){if(!S.global)return;setGlobalPayments(!S.paymentsOpen);}
+function renderPaymentConfig(){if(!S.global)return;const tr=S.paymentPublic?.transfer||{};const pp=S.paymentPayphone||{};if($('#payBankName'))$('#payBankName').value=tr.bankName||'';if($('#payAccountType'))$('#payAccountType').value=tr.accountType||'';if($('#payAccountNumber'))$('#payAccountNumber').value=tr.accountNumber||'';if($('#payAccountHolder'))$('#payAccountHolder').value=tr.accountHolder||'';if($('#payIdentification'))$('#payIdentification').value=tr.identification||'';if($('#payContact'))$('#payContact').value=tr.contact||'';if($('#payInstructions'))$('#payInstructions').value=tr.instructions||'';if($('#payTransferEnabled'))$('#payTransferEnabled').checked=tr.enabled!==false;if($('#payPayphoneEnabled'))$('#payPayphoneEnabled').checked=pp.enabled===true;if($('#payPayphoneToken'))$('#payPayphoneToken').value=pp.token||'';if($('#payPayphoneStoreId'))$('#payPayphoneStoreId').value=pp.storeId||'';}
+async function savePaymentConfig(e){e.preventDefault();if(!S.global)return msg('Solo el administrador global puede configurar los pagos.');const transfer={enabled:$('#payTransferEnabled').checked,bankName:$('#payBankName').value.trim(),accountType:$('#payAccountType').value.trim(),accountNumber:$('#payAccountNumber').value.trim(),accountHolder:$('#payAccountHolder').value.trim(),identification:$('#payIdentification').value.trim(),contact:$('#payContact').value.trim(),instructions:$('#payInstructions').value.trim(),updatedAt:now()};const enabled=$('#payPayphoneEnabled').checked;const token=$('#payPayphoneToken').value.trim();const storeId=$('#payPayphoneStoreId').value.trim();if(enabled&&(!token||!storeId))return msg('Para habilitar Payphone debes ingresar Token y Store ID.');try{await update(ref(db),{'paymentConfig/public/transfer':transfer,'paymentConfig/public/payphone':{enabled,updatedAt:now()},'paymentConfig/payphone':{enabled,token,storeId,updatedAt:now()}});S.paymentPublic={...(S.paymentPublic||{}),transfer,payphone:{enabled}};S.paymentPayphone={...(S.paymentPayphone||{}),enabled,token,storeId};renderPaymentConfig();msg('Configuración de pagos guardada correctamente.');}catch(err){msg(err?.message||'No se pudo guardar la configuración de pagos.');console.error(err);}}
+function renderPaymentRequests(){
+  if(!S.global)return;
+  const box=$('#paymentRequestsTable');
+  if(!box)return;
+  const rows=Object.values(S.paymentRequests||{})
+    .filter(x=>x&&(['pending','pending_transfer'].includes(x.status)))
+    .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  box.innerHTML=rows.map(r=>{
+    const t=S.tournaments[r.tournamentId];
+    const status=r.status==='pending_transfer'?'COMPROBANTE EN REVISIÓN':'PENDIENTE DE APROBACIÓN';
+    const proof=r.proofUrl||r.receiptUrl||r.comprobanteUrl||r.proof||'';
+    return `<tr>
+      <td>${r.createdAt?new Date(r.createdAt).toLocaleString('es-EC'):''}</td>
+      <td><b>${esc(t?.name||r.tournamentId||'')}</b><small class="payment-sub">${esc([t?.province,t?.canton,t?.parish].filter(Boolean).join(' · '))}</small></td>
+      <td>${esc(r.userEmail||r.uid||'')}</td>
+      <td><b>${esc(r.reference||'Sin referencia')}</b>${r.note?`<small class="payment-sub">${esc(r.note)}</small>`:''}${proof?`<a class="payment-proof" href="${esc(proof)}" target="_blank" rel="noopener">📎 Ver comprobante</a>`:''}</td>
+      <td><span class="account-status pending">${status}</span></td>
+      <td><button class="small-btn primary approve-payment" data-id="${esc(r.id)}">Aprobar $20</button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="6"><div class="payment-empty">No hay transferencias pendientes de aprobación.</div></td></tr>';
+  box.querySelectorAll('.approve-payment').forEach(b=>b.addEventListener('click',()=>approveTransfer(b.dataset.id)));
+}
+async function approveTransfer(id){if(!S.global)return;if(!confirm('¿Confirmas que recibiste los $20 y deseas activar este torneo?'))return;const r=S.paymentRequests[id];if(!r)return;await update(ref(db),{[`paymentRequests/${id}/status`]:'approved',[`paymentRequests/${id}/approvedAt`]:now(),[`paymentRequests/${id}/approvedBy`]:S.user.uid,[`tournaments/${r.tournamentId}/paymentStatus`]:'paid',[`tournaments/${r.tournamentId}/paymentProvider`]:'transfer',[`tournaments/${r.tournamentId}/status`]:'active',[`tournaments/${r.tournamentId}/paidAt`]:now()});msg('Transferencia aprobada y torneo activado.');}
 function msg(text){const el=$('#toast');el.textContent=text;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2800);}
 
 init();guardAdmin(boot);

@@ -1,0 +1,10 @@
+{
+  "name":"Campeonatos Ecuador",
+  "short_name":"Campeonatos",
+  "start_url":"inicio.html",
+  "display":"standalone",
+  "background_color":"#071522",
+  "theme_color":"#071522",
+  "description":"Directorio y gestión de campeonatos deportivos en Ecuador.",
+  "icons":[{"src":"img/favicon-192.png","sizes":"192x192","type":"image/png"},{"src":"img/favicon-512.png","sizes":"512x512","type":"image/png"}]
+}
