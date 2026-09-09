@@ -143,7 +143,17 @@ function renderDateFilters(rows){
   wrap.querySelectorAll('.date-filter').forEach(b=>b.addEventListener('click',()=>{state.dateFilter=b.dataset.date;renderMatches();}));
 }
 function renderMatches(){
-  const rows=Object.entries(state.matches).map(([id,m])=>({id,...m})).sort((a,b)=>String(a.dateValue||'').localeCompare(String(b.dateValue||''))||Number(a.roundNumber||0)-Number(b.roundNumber||0)||String(a.time||'').localeCompare(String(b.time||'')));
+  const rows=Object.entries(state.matches).map(([id,m])=>({id,...m})).sort((a,b)=>{
+    // En TODAS las fechas se muestran de la jornada más reciente a la más antigua.
+    // Ej.: Fecha 3 → Fecha 2 → Fecha 1. Dentro de cada fecha se conserva el orden cronológico.
+    const ra=Number(a.roundNumber||0), rb=Number(b.roundNumber||0);
+    if(ra!==rb) return rb-ra;
+    const ka=String(a.roundLabel||a.dateId||'').toLowerCase(), kb=String(b.roundLabel||b.dateId||'').toLowerCase();
+    const na=(ka.match(/\d+/)||['0'])[0], nb=(kb.match(/\d+/)||['0'])[0];
+    if(Number(na)!==Number(nb)) return Number(nb)-Number(na);
+    const da=String(a.dateValue||'9999-99-99'), db=String(b.dateValue||'9999-99-99');
+    return da.localeCompare(db)||String(a.time||'').localeCompare(String(b.time||''));
+  });
   renderDateFilters(rows);
   const filtered=state.dateFilter==='all'?rows:rows.filter(m=>dateKey(m)===state.dateFilter);
   const phase=rows.length?phaseLabel(rows[0]):'FASE DE GRUPOS'; if($('#phaseBadge'))$('#phaseBadge').textContent=phase;

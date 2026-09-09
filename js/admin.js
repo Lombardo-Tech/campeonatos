@@ -152,7 +152,7 @@ function renderAdminDateFilters(){
   const box=$('#adminDateFilters');if(!box)return;
   const groups=new Map();
   Object.values(S.matches).forEach(m=>{const key=dateKeyForMatch(m);if(!key||key==='::')return;const stage=stageById(m.stageId);const label=dateLabelForMatch(m);const sort=Number(m.roundNumber||0);if(!groups.has(key))groups.set(key,{label,stageId:m.stageId||'',roundNumber:sort});});
-  const dates=[...groups.entries()].sort((a,b)=>String(a[1].stageId).localeCompare(String(b[1].stageId))||a[1].roundNumber-b[1].roundNumber||a[1].label.localeCompare(b[1].label));
+  const dates=[...groups.entries()].sort((a,b)=>String(a[1].stageId).localeCompare(String(b[1].stageId))||b[1].roundNumber-a[1].roundNumber||b[1].label.localeCompare(a[1].label));
   if(S.dateFilter!=='all'&&!groups.has(S.dateFilter))S.dateFilter='all';
   box.innerHTML=`<button type="button" class="date-filter ${S.dateFilter==='all'?'active':''}" data-date="all">TODAS</button>${dates.map(([key,x])=>`<button type="button" class="date-filter ${S.dateFilter===key?'active':''}" data-date="${esc(key)}">${esc(x.label)}</button>`).join('')}`;
   box.querySelectorAll('.date-filter').forEach(b=>b.addEventListener('click',()=>{S.dateFilter=b.dataset.date;renderMatches();}));
@@ -162,7 +162,7 @@ function renderMatches(){
   renderAdminDateFilters();
   let rows=Object.entries(S.matches).map(([id,m])=>({id,...m}));
   if(S.dateFilter!=='all')rows=rows.filter(m=>dateKeyForMatch(m)===S.dateFilter);
-  rows.sort((a,b)=>String(a.dateValue||'').localeCompare(String(b.dateValue||''))||Number(a.roundNumber||0)-Number(b.roundNumber||0)||String(a.time||'').localeCompare(String(b.time||'')));
+  rows.sort((a,b)=>String(a.stageId||'').localeCompare(String(b.stageId||''))||Number(b.roundNumber||0)-Number(a.roundNumber||0)||String(b.dateValue||'').localeCompare(String(a.dateValue||''))||String(a.time||'').localeCompare(String(b.time||'')));
   box.innerHTML=rows.map(m=>{const st=String(m.status||'programado').toLowerCase();const live=st==='en juego',rest=st==='descanso',fin=st==='finalizado';return `<tr class="${live?'row-live':fin?'row-finished':''}"><td>${esc(m.phase||m.stageId||'-')}</td><td>${esc(m.roundLabel||m.dateId||'-')}</td><td>${esc(timeLabel(m.time))}</td><td>${esc(S.teams[m.local]?.name||m.local||'Por definir')}</td><td>${esc(S.teams[m.visitor]?.name||m.visitor||'Por definir')}</td><td><b>${live||rest||fin?`${Number(m.homeScore||0)} - ${Number(m.awayScore||0)}`:'VS'}</b></td><td><span class="status-badge ${live?'live':fin?'finished':''}">${live?'● EN JUEGO':rest?'⏸ DESCANSO':fin?'● FINALIZADO':'PROGRAMADO'}</span></td><td><button class="small-btn edit-match" data-id="${esc(m.id)}">Editar</button> <button class="small-btn primary result-match" data-id="${esc(m.id)}">Resultado</button></td></tr>`;}).join('')||'<tr><td colspan="8">No hay partidos en esta fecha.</td></tr>';
   box.querySelectorAll('.edit-match').forEach(b=>b.addEventListener('click',()=>editMatch(b.dataset.id)));
   box.querySelectorAll('.result-match').forEach(b=>b.addEventListener('click',()=>openResult(b.dataset.id)));
