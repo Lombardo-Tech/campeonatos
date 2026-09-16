@@ -38,43 +38,50 @@ export async function downloadMatchActPDF({tournament,match,teams,events}){
 
   const data=actaData({tournament,match,teams,events});
   const el=buildActaElement(data);
-
-  // Abrimos la ventana de impresión inmediatamente, antes de cualquier await,
-  // para que el navegador permita la acción iniciada por el clic del usuario.
-  const printWin=window.open('', '_blank', 'noopener,noreferrer');
-  if(!printWin) throw new Error('El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes para este sitio.');
-
   const css=[...el.querySelectorAll('style')].map(x=>x.textContent).join('\n');
   const content=el.querySelector('.acta-page')?.outerHTML || el.innerHTML;
-  printWin.document.open();
-  printWin.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Acta-${safeName(data.home)}-vs-${safeName(data.away)}</title><style>${css}
+  const title=`Acta-${safeName(data.home)}-vs-${safeName(data.away)}`;
+
+  // No abrimos una ventana nueva: usamos un iframe oculto para evitar
+  // bloqueadores de pop-ups. El navegador muestra su diálogo nativo de
+  // impresión y desde allí se puede seleccionar "Guardar como PDF".
+  const iframe=document.createElement('iframe');
+  iframe.setAttribute('aria-hidden','true');
+  iframe.style.cssText='position:fixed;width:1px;height:1px;left:-10000px;top:-10000px;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(iframe);
+
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${escActa(title)}</title><style>${css}
   html,body{margin:0;padding:0;background:#fff}
   @page{size:A4 portrait;margin:7mm}
   body{display:flex;justify-content:center}
   .acta-pdf-root{margin:0!important}
   @media print{body{display:block}.acta-pdf-root{width:794px!important}}
-  </style></head><body><div class="acta-pdf-root">${content}</div></body></html>`);
-  printWin.document.close();
+  </style></head><body><div class="acta-pdf-root">${content}</div></body></html>`;
 
   try{
+    const doc=iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+
     await new Promise(resolve=>{
-      const done=()=>resolve();
-      if(printWin.document.readyState==='complete') setTimeout(done,150);
-      else printWin.addEventListener('load',()=>setTimeout(done,150),{once:true});
+      const finish=()=>setTimeout(resolve,250);
+      if(doc.readyState==='complete') finish();
+      else iframe.addEventListener('load',finish,{once:true});
     });
-    const imgs=[...printWin.document.images];
+
+    const imgs=[...doc.images];
     await Promise.all(imgs.map(img=>new Promise(resolve=>{
       if(img.complete){resolve();return;}
       img.onload=resolve; img.onerror=resolve; setTimeout(resolve,3000);
     })));
-    await new Promise(r=>setTimeout(r,250));
-    printWin.focus();
-    printWin.print();
-    // No usamos pdf.save(): el usuario elige "Guardar como PDF" en el
-    // diálogo nativo del navegador, que es el flujo que ya funcionaba.
-    return `Acta-${safeName(data.home)}-vs-${safeName(data.away)}.pdf`;
-  }catch(err){
-    try{printWin.close();}catch{}
-    throw err;
+    await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    return `${title}.pdf`;
+  } finally {
+    // Se elimina después de dar tiempo al navegador a abrir el diálogo.
+    setTimeout(()=>iframe.remove(),1500);
   }
 }
