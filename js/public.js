@@ -1,3 +1,4 @@
+import { downloadMatchActPDF } from './acta.js';
 import { db } from './firebase.js';
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
 import { esc, timeLabel, dateLabel, normalize } from './common.js';
@@ -138,9 +139,23 @@ function renderDateFilters(rows){
   const dates=[]; const seen=new Set();
   rows.forEach(m=>{const k=dateKey(m);if(!seen.has(k)){seen.add(k);dates.push([k,dateName(m)]);}});
   const wrap=$('#dateFilters'); if(!wrap)return;
-  if(state.dateFilter!=='all'&&!seen.has(state.dateFilter))state.dateFilter='all';
-  wrap.innerHTML=`<button class="date-filter ${state.dateFilter==='all'?'active':''}" data-date="all">TODAS</button>${dates.map(([k,n])=>`<button class="date-filter ${state.dateFilter===k?'active':''}" data-date="${esc(k)}">${esc(n)}</button>`).join('')}`;
+  if(state.dateFilter!=='all'&&state.dateFilter!=='__byes__'&&!seen.has(state.dateFilter))state.dateFilter='all';
+  wrap.innerHTML=`<button class="date-filter ${state.dateFilter==='all'?'active':''}" data-date="all">TODAS</button>${dates.map(([k,n])=>`<button class="date-filter ${state.dateFilter===k?'active':''}" data-date="${esc(k)}">${esc(n)}</button>`).join('')}<button class="date-filter bye-tab ${state.dateFilter==='__byes__'?'active':''}" data-date="__byes__">💤 EQUIPOS LIBRES</button>`;
   wrap.querySelectorAll('.date-filter').forEach(b=>b.addEventListener('click',()=>{state.dateFilter=b.dataset.date;renderMatches();}));
+}
+function byeTeamsForRows(rows){
+  const byDate=new Map();
+  rows.forEach(m=>{const k=dateKey(m);if(!byDate.has(k))byDate.set(k,{label:dateName(m),round:Number(m.roundNumber||0),groups:new Set()});if(m.group)byDate.get(k).groups.add(String(m.group).toUpperCase());});
+  const allTeams=Object.entries(state.teams||{});
+  return [...byDate.entries()].map(([key,x])=>{const free=[];x.groups.forEach(g=>{const ids=allTeams.filter(([,t])=>String(t.group||'').toUpperCase()===g).map(([id])=>id);const played=new Set();rows.filter(m=>dateKey(m)===key&&String(m.group||'').toUpperCase()===g).forEach(m=>{if(m.local)played.add(m.local);if(m.visitor)played.add(m.visitor);});ids.filter(id=>!played.has(id)).forEach(id=>free.push({id,name:teamName(id),group:g}));});return {key,...x,free};}).filter(x=>x.free.length);
+}
+function renderByeInfo(rows){
+ const box=$('#byeInfo');if(!box)return;
+ if(state.dateFilter!=='__byes__'){box.innerHTML='';box.hidden=true;return;}
+ const all=byeTeamsForRows(rows);
+ if(!all.length){box.innerHTML='<div class="bye-info-head"><span>💤</span><div><b>Equipos libres</b><small>No hay equipos libres registrados.</small></div></div>';box.hidden=false;return;}
+ box.hidden=false;
+ box.innerHTML=`<div class="bye-info-head"><span>💤</span><div><b>Equipos libres</b><small>Descansos registrados por fecha</small></div></div><div class="bye-info-list">${all.map(x=>`<div class="bye-date"><strong>${esc(x.label)}</strong><div class="bye-names">${x.free.map(f=>`<div>${esc(f.name)} · Grupo ${esc(f.group)}</div>`).join('')}</div></div>`).join('')}</div>`;
 }
 function renderMatches(){
   const rows=Object.entries(state.matches).map(([id,m])=>({id,...m})).sort((a,b)=>{
@@ -155,8 +170,11 @@ function renderMatches(){
     return da.localeCompare(db)||String(a.time||'').localeCompare(String(b.time||''));
   });
   renderDateFilters(rows);
-  const filtered=state.dateFilter==='all'?rows:rows.filter(m=>dateKey(m)===state.dateFilter);
+  renderByeInfo(rows);
+  const byeMode=state.dateFilter==='__byes__';
+  const filtered=state.dateFilter==='all'?rows:(byeMode?[]:rows.filter(m=>dateKey(m)===state.dateFilter));
   const phase=rows.length?phaseLabel(rows[0]):'FASE DE GRUPOS'; if($('#phaseBadge'))$('#phaseBadge').textContent=phase;
+  if(byeMode){ $('#matchesGrid').innerHTML=''; bindMatchInteractions(); if(state.selectedMatchId && state.matches[state.selectedMatchId]) refreshOpenMatchDetail(); return; }
   $('#matchesGrid').innerHTML=filtered.length?filtered.map(m=>{
     const st=String(m.status||'programado').toLowerCase();
     const dateText=m.dateValue?dateLabel(m.dateValue):'';
@@ -192,7 +210,7 @@ function renderMatchDetail(matchId){
     const minute=e.minute!=null?`${esc(e.minute)}'`:'';
     return `<div class="detail-event ${side} ${matchEventType(e)}"><div class="detail-event-time">${minute}</div><div class="detail-event-icon">${matchEventIcon(e)}</div><div class="detail-event-info"><b>${esc(matchEventLabel(e))}</b>${e.player?`<span>${esc(e.player)}</span>`:''}<small>${side==='home'?esc(home):esc(away)}</small></div></div>`;
   }).join(''):'<div class="detail-empty"><span>⚽</span><b>Sin eventos registrados</b><small>Los goles y tarjetas aparecerán aquí durante el partido.</small></div>';
-  modal.innerHTML=`<div class="modal-backdrop" data-close-match></div><div class="match-detail-box" role="dialog" aria-modal="true" aria-labelledby="matchDetailTitle"><button class="modal-close public-modal-close" type="button" aria-label="Cerrar" data-close-match>×</button><div class="detail-top"><div><span class="kicker">${esc(phaseLabel(match))}</span><h2 id="matchDetailTitle">${esc(date)}</h2></div>${statusHtml}</div><div class="detail-meta"><span>▦ ${esc(date)}</span><span>◷ ${esc(time)}</span>${group}</div><div class="detail-scoreboard"><div class="detail-team home"><div class="detail-logo">${teamLogo(match.local,'team-logo')}</div><b>${esc(home)}</b><small>LOCAL</small></div><div class="detail-score"><strong>${score}</strong>${st==='en juego'||st==='descanso'?`<span data-live-minute data-match-id="${esc(matchId)}">${esc(liveMinuteLabel(match))}</span>`:''}</div><div class="detail-team away"><div class="detail-logo">${teamLogo(match.visitor,'team-logo')}</div><b>${esc(away)}</b><small>VISITANTE</small></div></div><div class="detail-summary"><div><b>${goals}</b><span>⚽ Goles</span></div><div><b>${yellows}</b><span>🟨 Amarillas</span></div><div><b>${reds}</b><span>🟥 Rojas</span></div></div><section class="detail-section"><div class="detail-section-head"><div><span class="kicker">CRONOLOGÍA</span><h3>Eventos del partido</h3></div><span>${events.length} evento${events.length===1?'':'s'}</span></div><div class="detail-events">${eventHtml}</div></section><div class="detail-footer"><span>${st==='programado'?'El partido todavía no ha comenzado.':st==='finalizado'?'Partido finalizado.':'Información actualizada en tiempo real.'}</span><button class="btn ghost" type="button" data-close-match>Cerrar</button></div></div>`;
+  modal.innerHTML=`<div class="modal-backdrop" data-close-match></div><div class="match-detail-box" role="dialog" aria-modal="true" aria-labelledby="matchDetailTitle"><button class="modal-close public-modal-close" type="button" aria-label="Cerrar" data-close-match>×</button><div class="detail-top"><div><span class="kicker">${esc(phaseLabel(match))}</span><h2 id="matchDetailTitle">${esc(date)}</h2></div>${statusHtml}</div><div class="detail-meta"><span>▦ ${esc(date)}</span><span>◷ ${esc(time)}</span>${group}</div><div class="detail-scoreboard"><div class="detail-team home"><div class="detail-logo">${teamLogo(match.local,'team-logo')}</div><b>${esc(home)}</b><small>LOCAL</small></div><div class="detail-score"><strong>${score}</strong>${st==='en juego'||st==='descanso'?`<span data-live-minute data-match-id="${esc(matchId)}">${esc(liveMinuteLabel(match))}</span>`:''}</div><div class="detail-team away"><div class="detail-logo">${teamLogo(match.visitor,'team-logo')}</div><b>${esc(away)}</b><small>VISITANTE</small></div></div><div class="detail-summary"><div><b>${goals}</b><span>⚽ Goles</span></div><div><b>${yellows}</b><span>🟨 Amarillas</span></div><div><b>${reds}</b><span>🟥 Rojas</span></div></div><section class="detail-section"><div class="detail-section-head"><div><span class="kicker">CRONOLOGÍA</span><h3>Eventos del partido</h3></div><span>${events.length} evento${events.length===1?'':'s'}</span></div><div class="detail-events">${eventHtml}</div></section><div class="detail-footer"><span>${st==='programado'?'El partido todavía no ha comenzado.':st==='finalizado'?'Partido finalizado.':'Información actualizada en tiempo real.'}</span><div class="detail-footer-actions">${st==='finalizado'?'<button class="btn primary" type="button" data-download-acta>📄 Descargar acta PDF</button>':''}<button class="btn ghost" type="button" data-close-match>Cerrar</button></div></div></div>`;
   modal.classList.add('open');
   modal.setAttribute('aria-hidden','false');
   document.body.classList.add('modal-open');
@@ -206,7 +224,7 @@ function bindMatchInteractions(){
   }
   const modal=$('#matchDetailModal'); if(modal&&!modal.dataset.bound){
     modal.dataset.bound='1';
-    modal.addEventListener('click',e=>{if(e.target.closest('[data-close-match]'))closeMatchDetail();});
+    modal.addEventListener('click',async e=>{if(e.target.closest('[data-close-match]'))return closeMatchDetail();const btn=e.target.closest('[data-download-acta]');if(!btn)return;const id=state.selectedMatchId;const match=state.matches?.[id];if(!match)return;btn.disabled=true;btn.textContent='Generando PDF...';try{await downloadMatchActPDF({tournament:state.tournaments[state.tid]||{},match,teams:state.teams,events:state.events?.[id]||{}});btn.textContent='✓ PDF descargado';setTimeout(()=>{if(btn.isConnected){btn.disabled=false;btn.textContent='📄 Descargar acta PDF';}},1800);}catch(err){console.error(err);btn.disabled=false;btn.textContent='📄 Descargar acta PDF';alert(err?.message||'No se pudo generar el PDF.');}});
   }
 }
 function refreshOpenMatchDetail(){if(state.selectedMatchId)renderMatchDetail(state.selectedMatchId);}
