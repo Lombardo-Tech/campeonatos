@@ -1,0 +1,9 @@
+V81 - APUESTAS PÚBLICAS SIN LOGIN
+
+- Nueva sección Apuestas en la página pública.
+- No requiere autenticación.
+- Solo permite seleccionar partidos que no estén finalizados.
+- Se selecciona equipo, monto y la persona con quien va la apuesta.
+- Guarda el registro en apuestas/{torneo}/{apuesta}.
+- Al finalizar muestra opción para compartir la apuesta por WhatsApp con mensaje precargado.
+- Se agregan reglas de Firebase para permitir el alta pública de apuestas y restringir su lectura.

@@ -1,0 +1,10 @@
+V82 — Enlace único de apuesta y aceptación por WhatsApp
+
+- Cada apuesta pública genera un token único y difícil de adivinar.
+- El botón de WhatsApp ahora incluye el enlace completo a apuesta.html?t=TORNEO&id=APUESTA.
+- Se agregó Copiar enlace.
+- Se agregó apuesta.html para que el rival pueda consultar la apuesta sin iniciar sesión.
+- El rival puede Aceptar o Rechazar una apuesta pendiente.
+- Se registra respondedAt al responder.
+- La apuesta pública inicia en estado pendiente.
+- Se mantiene la restricción de que solo se apuesten partidos no finalizados y equipos participantes.

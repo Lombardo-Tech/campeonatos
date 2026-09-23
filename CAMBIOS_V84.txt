@@ -1,0 +1,7 @@
+V84 — Corrección de permisos de apuestas
+
+- Corregido el conflicto de reglas Firebase que impedía crear apuestas públicas.
+- Las nuevas apuestas se guardan con estado PENDIENTE.
+- Se mantiene aceptación/rechazo mediante enlace público.
+- Solo el super administrador puede eliminar apuestas.
+- La lectura administrativa continúa restringida a administradores; la lectura individual del enlace usa el ID/token de la apuesta.

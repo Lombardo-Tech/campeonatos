@@ -1,0 +1,8 @@
+V87 - Corrección de permisos de apuestas
+
+- Se elimina la regla .validate incorrecta en apuestas/$tid.
+- Esa validación se ejecutaba también al guardar /apuestas/$tid/$betId y evaluaba newData como el nodo completo de apuestas del torneo, no como una apuesta individual.
+- La validación correcta permanece en apuestas/$tid/$betId.
+- Se mantiene: creación pública de apuestas pendientes, aceptación/rechazo por enlace y eliminación solo por super admin.
+
+IMPORTANTE: publicar firebase-rules.json en Firebase Realtime Database > Rules antes de probar.

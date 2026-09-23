@@ -1,0 +1,8 @@
+V91 - Calendario muestra por defecto la última fecha
+
+- Calendario público: al cargar un torneo, muestra automáticamente la fecha/jornada más reciente en lugar de TODAS.
+- Administración > Partidos y resultados: aplica el mismo comportamiento y muestra primero la última fecha.
+- Si se genera una nueva fecha mientras la vista está en modo automático, la nueva fecha pasa a mostrarse automáticamente.
+- El usuario puede seleccionar TODAS o cualquier otra fecha manualmente; al hacerlo se respeta su selección.
+- Al cambiar de torneo, el calendario vuelve al modo automático y selecciona la fecha más reciente.
+- Se mantiene el resto de funcionalidades sin cambios.

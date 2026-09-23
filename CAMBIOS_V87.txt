@@ -1,0 +1,8 @@
+V87 — Corrección visual de apuesta.html
+- La cabecera ahora muestra LOCAL VS VISITANTE en una sola línea.
+- Se eliminó la línea redundante debajo del título.
+- Se agregó 💰 junto al monto y se separó visualmente etiqueta y valor.
+- Se corrigió el color del texto dentro de la tarjeta blanca para que sea legible.
+- Las apuestas nuevas guardan localName y visitorName.
+- Para apuestas existentes que no tengan esos nombres, apuesta.html recupera los nombres desde partidos/equipos usando localId/visitorId.
+- Se mantiene el flujo de aceptación/rechazo sin login.

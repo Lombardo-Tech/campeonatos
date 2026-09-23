@@ -4,7 +4,7 @@ import { guardAdmin, signOut } from './auth.js';
 import { ref, get, set, update, remove, onValue } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
 import { esc, slug, now, timeLabel, imageFileToDataUrl } from './common.js';
 
-const S={user:null,global:false,accessLoaded:false,globalListenersStarted:false,allowedTids:new Set(),tournaments:{},tid:'',isNew:false,paymentsOpen:false,teams:{},matches:{},events:{},admins:{},stageUnsub:[],moduleUnsub:[],dateFilter:'all',paymentRequests:{},paymentPublic:{},paymentPayphone:{}};
+const S={user:null,global:false,accessLoaded:false,globalListenersStarted:false,allowedTids:new Set(),tournaments:{},tid:'',isNew:false,paymentsOpen:false,teams:{},matches:{},events:{},admins:{},stageUnsub:[],moduleUnsub:[],dateFilter:'all',dateFilterAuto:true,paymentRequests:{},paymentPublic:{},paymentPayphone:{},bets:{}};
 const $=s=>document.querySelector(s);
 const key=(prefix='id')=>`${slug(prefix)||'id'}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 const stages=()=>Array.isArray(S.tournaments[S.tid]?.format?.stages)?S.tournaments[S.tid].format.stages:[];
@@ -71,6 +71,7 @@ function init(){
   $('#finishMatch')?.addEventListener('click',finishLiveMatch);
   $('#addEvent').addEventListener('click',addEventRow);
   $('#paymentConfigForm')?.addEventListener('submit',savePaymentConfig);
+  $('#betsTable')?.addEventListener('click',handleBetTableClick);
   document.querySelectorAll('[data-payment-tab]').forEach(btn=>btn.addEventListener('click',()=>switchPaymentTab(btn.dataset.paymentTab)));
   // Los listeners globales de pagos se inicializan después de verificar S.global.
   // Esto evita que init() intente decidir permisos antes de que Firebase Auth haya resuelto al usuario.
@@ -118,7 +119,9 @@ function clearSubs(){S.stageUnsub.forEach(fn=>{try{fn();}catch{}});S.stageUnsub=
 function selectTournament(tid){if(!canViewTournament(tid))return msg('Este torneo no está asignado a tu usuario.');clearSubs();S.tid=tid;S.isNew=false;setGlobalPayments(false);const t=currentTournament();if(!t)return;
   if(S.global){onValue(ref(db,`tournamentAdmins/${tid}`),s=>{S.admins=s.val()||{};renderAdmins();});}
   else{get(ref(db,`tournamentAdmins/${tid}/${S.user.uid}`)).then(s=>{if(s.exists())S.admins[S.user.uid]=s.val();}).catch(()=>{});}
-  onValue(ref(db,`equipos/${tid}`),s=>{S.teams=s.val()||{};renderTeams();refreshMatchTeams();renderDashboard();renderPlayerTeamOptions();renderActMatches();initSelect2('#tournamentWorkspace');});onValue(ref(db,`partidos/${tid}`),async s=>{S.matches=s.val()||{};const first=stages()[0];if(first){const fixes={};Object.entries(S.matches).forEach(([id,m])=>{if(!m.stageId){fixes[`partidos/${tid}/${id}/stageId`]=first.id;fixes[`partidos/${tid}/${id}/phase`]=first.name;}});if(Object.keys(fixes).length&&isAllowed())await update(ref(db),fixes);}renderMatches();renderDashboard();renderStageOverview();});onValue(ref(db,`eventos/${tid}`),s=>{S.events=s.val()||{};});renderTournamentDetails();renderTournamentList();}
+  onValue(ref(db,`equipos/${tid}`),s=>{S.teams=s.val()||{};renderTeams();refreshMatchTeams();renderDashboard();renderPlayerTeamOptions();renderActMatches();initSelect2('#tournamentWorkspace');});onValue(ref(db,`partidos/${tid}`),async s=>{S.matches=s.val()||{};const first=stages()[0];if(first){const fixes={};Object.entries(S.matches).forEach(([id,m])=>{if(!m.stageId){fixes[`partidos/${tid}/${id}/stageId`]=first.id;fixes[`partidos/${tid}/${id}/phase`]=first.name;}});if(Object.keys(fixes).length&&isAllowed())await update(ref(db),fixes);}renderMatches();renderDashboard();renderStageOverview();});onValue(ref(db,`eventos/${tid}`),s=>{S.events=s.val()||{};});
+  onValue(ref(db,`apuestas/${tid}`),s=>{S.bets=s.val()||{};renderBets();});
+  renderTournamentDetails();renderTournamentList();}
 
 function setLogoPreview(sel,url){const box=$(sel);if(!box)return;box.innerHTML=url?`<img src="${esc(url)}" alt="Vista previa" onerror="this.parentElement.innerHTML='<span>⚽</span>'">`:'<span>⚽</span>';}
 function previewFile(inputSel,previewSel){const file=$(inputSel)?.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=()=>setLogoPreview(previewSel,reader.result);reader.readAsDataURL(file);}
@@ -133,7 +136,7 @@ function defaultStages(){return [
 ];}
 function newTournament(){
   clearSubs();
-  S.tid='';S.isNew=true;S.teams={};S.matches={};S.events={};S.admins={};S.dateFilter='all';
+  S.tid='';S.isNew=true;S.teams={};S.matches={};S.events={};S.admins={};S.dateFilter='all';S.dateFilterAuto=true;
   setGlobalPayments(false);
   $('#selectedName').textContent='Nuevo torneo';
   $('#pageTitle').textContent='Crear nuevo torneo';
@@ -199,9 +202,62 @@ function renderAdminDateFilters(){
   const groups=new Map();
   Object.values(S.matches).forEach(m=>{const key=dateKeyForMatch(m);if(!key||key==='::')return;const stage=stageById(m.stageId);const label=dateLabelForMatch(m);const sort=Number(m.roundNumber||0);if(!groups.has(key))groups.set(key,{label,stageId:m.stageId||'',roundNumber:sort});});
   const dates=[...groups.entries()].sort((a,b)=>String(a[1].stageId).localeCompare(String(b[1].stageId))||b[1].roundNumber-a[1].roundNumber||b[1].label.localeCompare(a[1].label));
-  if(S.dateFilter!=='all'&&S.dateFilter!=='__byes__'&&!groups.has(S.dateFilter))S.dateFilter='all';
+  const latest=dates.slice().sort((a,b)=>Number(b[1].roundNumber||0)-Number(a[1].roundNumber||0)||String(b[0]).localeCompare(String(a[0])))[0]?.[0] || dates[0]?.[0] || 'all';
+  if(S.dateFilterAuto && latest) S.dateFilter=latest;
+  if(S.dateFilter!=='all'&&S.dateFilter!=='__byes__'&&!groups.has(S.dateFilter))S.dateFilter=latest||'all';
   box.innerHTML=`<button type="button" class="date-filter ${S.dateFilter==='all'?'active':''}" data-date="all">TODAS</button>${dates.map(([key,x])=>`<button type="button" class="date-filter ${S.dateFilter===key?'active':''}" data-date="${esc(key)}">${esc(x.label)}</button>`).join('')}<button type="button" class="date-filter bye-tab ${S.dateFilter==='__byes__'?'active':''}" data-date="__byes__">💤 EQUIPOS LIBRES</button>`;
-  box.querySelectorAll('.date-filter').forEach(b=>b.addEventListener('click',()=>{S.dateFilter=b.dataset.date;renderMatches();}));
+  box.querySelectorAll('.date-filter').forEach(b=>b.addEventListener('click',()=>{S.dateFilter=b.dataset.date;S.dateFilterAuto=false;renderMatches();}));
+}
+
+function renderBets(){
+  const box=$('#betsTable');
+  const count=$('#betsCount');
+  if(!box)return;
+  const rows=Object.entries(S.bets||{}).map(([id,b])=>{
+    const m=S.matches?.[b.matchId]||{};
+    const local=S.teams?.[b.localId]?.name||b.localName||m.localName||b.localId||'Local';
+    const visitor=S.teams?.[b.visitorId]?.name||b.visitorName||m.visitorName||b.visitorId||'Visitante';
+    return {id,b,m,local,visitor};
+  }).sort((a,b)=>String(b.b?.createdAt||'').localeCompare(String(a.b?.createdAt||'')));
+  if(count)count.textContent=`${rows.length} apuesta${rows.length===1?'':'s'}`;
+  const statusLabel=x=>x==='aceptada'?'ACEPTADA':x==='rechazada'?'RECHAZADA':'PENDIENTE';
+  const betResult=(b)=>{
+    const m=S.matches?.[b.matchId];
+    const status=String(b.status||'pendiente').toLowerCase();
+    if(status==='rechazada') return {text:'Apuesta rechazada',cls:'rejected'};
+    if(status!=='aceptada') return {text:'Pendiente de aceptación',cls:'pending'};
+    if(!m || String(m.status||'').toLowerCase()!=='finalizado') return {text:'Pendiente del resultado',cls:'pending'};
+    const hs=Number(m.homeScore||0), as=Number(m.awayScore||0);
+    if(hs===as) return {text:'Nadie es el ganador',cls:'draw'};
+    const winner=hs>as?m.local:m.visitor;
+    const bettorWon=String(b.teamId||'')===String(winner||'');
+    return bettorWon?{text:`${b.bettor||'El apostador'} ganó la apuesta`,cls:'won'}:{text:`${b.opponent||'El oponente'} ganó la apuesta`,cls:'lost'};
+  };
+  box.innerHTML=rows.map(({id,b,local,visitor})=>{
+    const status=String(b.status||'pendiente').toLowerCase();
+    const result=betResult(b);
+    const link=`apuesta.html?t=${encodeURIComponent(S.tid)}&id=${encodeURIComponent(id)}`;
+    return `<tr class="bet-admin-row">
+      <td class="bet-admin-match"><b>${esc(local)} vs ${esc(visitor)}</b><small>${esc(b.matchId||'')}</small></td>
+      <td class="bet-admin-bettor"><b>${esc(b.bettor||'Sin nombre')}</b><small>${esc(b.phone||'')}</small></td>
+      <td class="bet-admin-team"><b>${esc(b.teamName||b.teamId||'-')}</b><strong>$${Number(b.amount||0).toFixed(2)}</strong></td>
+      <td class="bet-admin-opponent"><b>${esc(b.opponent||'-')}</b></td>
+      <td><span class="bet-admin-status ${status}">${statusLabel(status)}</span><small class="bet-admin-result ${result.cls}">${esc(result.text)}</small></td>
+      <td class="bet-admin-actions"><a class="small-btn primary view-bet" href="${esc(link)}" target="_blank" rel="noopener">👁 Ver</a>${S.global?` <button type="button" class="small-btn danger delete-bet" data-id="${esc(id)}">Eliminar</button>`:' <span class="table-muted">Solo lectura</span>'}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7">No hay apuestas registradas para este torneo.</td></tr>';
+}
+async function handleBetTableClick(e){
+  const btn=e.target.closest('.delete-bet');
+  if(!btn||!S.global)return;
+  const id=btn.dataset.id;
+  const b=S.bets?.[id];
+  if(!b)return;
+  const who=b.bettor||'Sin nombre', opp=b.opponent||'sin oponente', amount=Number(b.amount||0).toFixed(2);
+  if(!confirm(`¿Eliminar esta apuesta?\n\n${who} · $${amount} · con ${opp}\n\nEsta acción es para registros sin seriedad y no se puede deshacer.`))return;
+  btn.disabled=true;
+  try{await remove(ref(db,`apuestas/${S.tid}/${id}`));msg('Apuesta eliminada correctamente.');}
+  catch(err){console.error(err);msg(err?.message||'No se pudo eliminar la apuesta.');btn.disabled=false;}
 }
 function renderMatches(){
   const box=$('#matchesTable');if(!box)return;

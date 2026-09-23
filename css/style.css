@@ -552,3 +552,36 @@ html::-webkit-scrollbar-thumb:hover,.admin-page::-webkit-scrollbar-thumb:hover{b
   object-fit: contain !important;
   display: block !important;
 }
+
+/* V81 · Apuestas públicas sin login */
+.betting-card{display:grid;gap:18px;padding:22px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(145deg,rgba(22,43,61,.96),rgba(8,21,34,.96))}.betting-card select{appearance:auto}.bet-summary{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:14px;background:rgba(157,247,45,.055);border:1px solid rgba(157,247,45,.18);color:#dce8f4}.bet-summary>span{font-size:24px}.bet-summary b,.bet-summary small{display:block}.bet-summary small{margin-top:4px;color:#8198ac;font-size:10px}.bet-whatsapp{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:14px 16px;border-radius:15px;border:1px solid rgba(37,211,102,.28);background:rgba(37,211,102,.055)}.bet-whatsapp>div b,.bet-whatsapp>div small{display:block}.bet-whatsapp small{margin-top:4px;color:#8198ac;font-size:10px}.bet-whatsapp .btn{white-space:nowrap}@media(max-width:650px){.bet-whatsapp{display:grid}.bet-whatsapp .btn{width:100%}}
+
+.bet-share-link{display:flex;gap:8px;margin-top:10px;align-items:center}.bet-share-link input{flex:1;min-width:0}.bet-accept-page{max-width:720px;margin:40px auto}.bet-accept-card{background:#fff;border:1px solid #dbe4e9;border-radius:20px;overflow:hidden;box-shadow:0 14px 40px rgba(7,23,37,.08)}.bet-accept-head{padding:28px;background:#071725;color:#fff}.bet-accept-head h1{margin:6px 0;font-size:28px}.bet-accept-head p{color:#b8c9d4;margin:0 0 14px}.bet-accept-body{padding:28px}.bet-accept-amount{padding:18px;border:1px solid #dce5e9;border-radius:14px;text-align:center;margin-bottom:18px}.bet-accept-amount small,.bet-accept-row small{display:block;color:#7b8f9d;font-size:10px;font-weight:900;letter-spacing:1px;text-transform:uppercase}.bet-accept-amount strong{font-size:34px}.bet-accept-row{display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid #e7edf0}.bet-accept-row>span{font-size:24px}.bet-accept-row b{display:block;margin-top:3px}.bet-accept-question{text-align:center;font-size:20px;font-weight:900;margin:26px 0 16px}.bet-accept-actions{display:flex;gap:10px;justify-content:center}.btn.danger{background:#fff;border:1px solid #d76b6b;color:#a33b3b}.bet-accept-result{margin-top:24px;padding:16px;border-radius:12px;background:#f4f7f9;text-align:center;font-weight:800}.bet-accept-result small{display:block;margin-top:6px;color:#7b8f9d;font-weight:500}@media(max-width:600px){.bet-share-link{flex-direction:column;align-items:stretch}.bet-accept-actions{flex-direction:column}.bet-accept-body{padding:20px}}
+
+.bet-admin-status{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:900;letter-spacing:.5px;background:#eef3f6;color:#536a79}.bet-admin-status.pendiente{background:#fff4cf;color:#8a6800}.bet-admin-status.aceptada{background:#e6f7d8;color:#4c7a20}.bet-admin-status.rechazada{background:#ffe2e2;color:#a33a3a}.table-muted{font-size:10px;color:#8294a1;font-weight:700}
+/* V86/V87: estilos de lectura para la página pública de apuestas */
+.bet-accept-card{color:#102334}
+.bet-accept-head h1{color:#fff;line-height:1.15;letter-spacing:-.025em}
+.bet-accept-head .phase-badge{color:var(--accent)}
+.bet-accept-amount{display:flex;align-items:center;gap:14px;text-align:left}
+.bet-accept-amount>span{font-size:25px;line-height:1}
+.bet-accept-amount strong{display:block;color:#102334;font-size:28px;line-height:1.15;margin-top:4px}
+.bet-accept-row b{color:#102334}
+.bet-accept-question{color:#102334}
+.bet-accept-result{color:#102334}
+@media(max-width:600px){.bet-accept-head h1{font-size:23px}.bet-accept-amount strong{font-size:26px}}
+
+/* Apuestas · presentación compacta en administración */
+.bet-admin-row td{vertical-align:middle;padding:15px 14px}
+.bet-admin-row td b,.bet-admin-row td small,.bet-admin-row td strong{display:block}
+.bet-admin-row td b{font-size:12px;color:#f4f7fb}
+.bet-admin-row td small{margin-top:5px;color:#8ea1b5;font-size:10px;line-height:1.3;word-break:break-all}
+.bet-admin-match{min-width:250px}
+.bet-admin-bettor{min-width:170px}
+.bet-admin-team{min-width:130px}
+.bet-admin-team strong{margin-top:6px;color:var(--accent);font-size:14px}
+.bet-admin-opponent{min-width:120px}
+.bet-admin-label{display:block;color:#71879a;font-size:9px;font-weight:900;letter-spacing:.7px;text-transform:uppercase;margin-bottom:5px}
+@media(max-width:850px){.bet-admin-row td{padding:12px 10px}.bet-admin-match{min-width:220px}.bet-admin-bettor{min-width:150px}}
+
+.bet-admin-actions{white-space:nowrap;display:flex;gap:6px;align-items:center}.bet-admin-actions .small-btn{text-decoration:none}.bet-admin-result{display:block;margin-top:4px;font-size:.75rem;font-weight:700}.bet-admin-result.won{color:#16803c}.bet-admin-result.lost{color:#b42318}.bet-admin-result.draw{color:#8a5a00}.bet-admin-result.pending{color:#667085}.bet-admin-result.rejected{color:#b42318}.bet-accept-result.won{border-color:#86efac;background:#f0fdf4}.bet-accept-result.lost{border-color:#fecaca;background:#fef2f2}.bet-accept-result.draw{border-color:#fde68a;background:#fffbeb}.bet-accept-result.rejected{border-color:#fecaca;background:#fef2f2}.bet-accept-result strong{display:block}.bet-accept-result small{display:block;margin-top:6px}

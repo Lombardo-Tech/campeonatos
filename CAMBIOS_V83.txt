@@ -1,0 +1,7 @@
+V83 - Administración de apuestas
+
+- Se agregó la sección Apuestas dentro de la administración de cada torneo.
+- Los administradores pueden consultar las apuestas registradas.
+- El super administrador (globalAdmins) puede eliminar una apuesta.
+- La eliminación requiere confirmación y está pensada para registros sin seriedad o por error.
+- Firebase Rules: solo el super administrador puede borrar apuestas; la creación pública y aceptación/rechazo continúan funcionando.

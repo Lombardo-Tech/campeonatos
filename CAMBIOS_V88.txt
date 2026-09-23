@@ -1,0 +1,1 @@
+V88 - Administración de apuestas: formato compacto con partido + ID, apostador + teléfono, equipo + monto en bloques separados. Se mantiene oponente, estado y eliminación del super administrador.

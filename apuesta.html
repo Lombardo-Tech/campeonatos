@@ -1,0 +1,46 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Apuesta entre amigos</title><meta name="theme-color" content="#07111f"><link rel="icon" href="img/favicon-32.png"><link rel="stylesheet" href="css/style.css"></head><body class="public-page"><header class="topbar"><a class="brand" href="./"><span class="brand-mark">⚽</span><span><b>PLATAFORMA DE TORNEOS</b><small>Apuesta entre amigos</small></span></a></header><main><section class="container section bet-accept-page"><div id="betPage" class="bet-accept-card"><div class="empty">Cargando apuesta...</div></div></section></main><script type="module">
+import { db } from './js/firebase.js';
+import { ref, onValue, update } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
+const box=document.querySelector('#betPage');
+const params=new URLSearchParams(location.search); const tid=params.get('t'); const id=params.get('id');
+const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+if(!tid||!id){box.innerHTML='<div class="empty">Enlace de apuesta inválido.</div>';} else {
+ onValue(ref(db,`apuestas/${tid}/${id}`),snap=>{
+  const b=snap.val();
+  if(!b){box.innerHTML='<div class="empty">No encontramos esta apuesta o el enlace ya no es válido.</div>';return;}
+  const status=String(b.status||'pendiente').toLowerCase();
+  const statusLabel=status==='aceptada'?'ACEPTADA':status==='rechazada'?'RECHAZADA':'PENDIENTE';
+  const locked=status!=='pendiente';
+  const render=(localName,visitorName,matchData=null)=>{
+    const home=localName||b.localName||b.localId||'Equipo local';
+    const away=visitorName||b.visitorName||b.visitorId||'Equipo visitante';
+    const title=`${home} VS ${away}`;
+    let outcome='';
+    if(status==='aceptada'){
+      const ms=String(matchData?.status||'').toLowerCase();
+      if(ms==='finalizado'){
+        const hs=Number(matchData?.homeScore||0), as=Number(matchData?.awayScore||0);
+        if(hs===as){ outcome='<div class="bet-accept-result draw"><strong>🤝 Nadie es el ganador</strong><small>El partido terminó empatado.</small></div>'; }
+        else {
+          const winner=hs>as?(matchData?.local):(matchData?.visitor);
+          const bettorWon=String(b.teamId||'')===String(winner||'');
+          const winnerName=bettorWon?(b.bettor||'El apostador'):(b.opponent||'El oponente');
+          outcome=`<div class="bet-accept-result ${bettorWon?'won':'lost'}"><strong>🏆 ${esc(winnerName)} ganó la apuesta</strong><small>Resultado: ${hs} - ${as}</small></div>`;
+        }
+      } else { outcome='<div class="bet-accept-result"><strong>⏳ Apuesta aceptada</strong><small>El resultado aparecerá aquí cuando termine el partido.</small></div>'; }
+    } else if(status==='rechazada'){ outcome=`<div class="bet-accept-result rejected"><strong>❌ Esta apuesta fue rechazada.</strong>${b.respondedAt?`<small>Respondida el ${new Date(b.respondedAt).toLocaleString('es-EC')}</small>`:''}</div>`; }
+    box.innerHTML=`<div class="bet-accept-head"><span class="kicker">APUESTA ENTRE AMIGOS</span><h1>${esc(title)}</h1><span class="phase-badge">${statusLabel}</span></div><div class="bet-accept-body"><div class="bet-accept-amount"><span aria-hidden="true">💰</span><div><small>MONTO</small><strong>$${Number(b.amount||0).toFixed(2)}</strong></div></div><div class="bet-accept-row"><span>👤</span><div><small>Propone</small><b>${esc(b.bettor||'Sin nombre')} le va a ${esc(b.teamName||b.teamId||'')}</b></div></div><div class="bet-accept-row"><span>🤝</span><div><small>La apuesta es con</small><b>${esc(b.opponent||'')}</b></div></div>${locked?outcome:`<p class="bet-accept-question">¿Aceptas esta apuesta?</p><div class="bet-accept-actions"><button id="accept" class="btn primary">✅ Aceptar apuesta</button><button id="reject" class="btn danger">❌ Rechazar</button></div><p id="betActionMsg" class="public-request-msg"></p>`}</div>`;
+    if(!locked){
+      const act=async next=>{document.querySelectorAll('.bet-accept-actions button').forEach(x=>x.disabled=true);try{await update(ref(db,`apuestas/${tid}/${id}`),{status:next,respondedAt:new Date().toISOString()});}catch(e){document.querySelector('#betActionMsg').textContent='No se pudo actualizar la apuesta. Intenta nuevamente.';document.querySelectorAll('.bet-accept-actions button').forEach(x=>x.disabled=false);}};
+      document.querySelector('#accept')?.addEventListener('click',()=>act('aceptada')); document.querySelector('#reject')?.addEventListener('click',()=>act('rechazada'));
+    }
+  };
+  if(b.matchId){
+    let match=null, teams=null, ready=false;
+    const paint=()=>{if(!ready)return; const m=match||{}; const tn=teams||{}; const name=id=>tn[id]?.name||tn[id]?.nombre||id||''; render(name(m.local||b.localId),name(m.visitor||b.visitorId),m);};
+    onValue(ref(db,`partidos/${tid}/${b.matchId}`),s=>{match=s.val()||{};ready=true;paint();},{onlyOnce:true});
+    onValue(ref(db,`equipos/${tid}`),s=>{teams=s.val()||{};ready=true;paint();},{onlyOnce:true});
+  } else render(b.localName||'',b.visitorName||'',null);
+ });
+}
+</script></body></html>

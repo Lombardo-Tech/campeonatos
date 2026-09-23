@@ -1,8 +1,8 @@
 import { downloadMatchActPDF } from './acta.js';
 import { db } from './firebase.js';
-import { ref, onValue } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
+import { ref, onValue, set } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
 import { esc, timeLabel, dateLabel, normalize } from './common.js';
-const state={tournaments:{},tid:new URLSearchParams(location.search).get('t')||'',teams:{},matches:{},events:{},players:{},news:{},sponsors:{},venues:{},awards:{},unsub:[],dateFilter:'all',eventsReady:false,seenEvents:new Set(),liveTimer:null,selectedMatchId:null,selectedTeamId:null};
+const state={tournaments:{},tid:new URLSearchParams(location.search).get('t')||'',teams:{},matches:{},events:{},players:{},news:{},sponsors:{},venues:{},awards:{},unsub:[],dateFilter:'all',dateFilterAuto:true,eventsReady:false,seenEvents:new Set(),liveTimer:null,selectedMatchId:null,selectedTeamId:null};
 
 function normalizePublicUrl(){const params=new URLSearchParams(location.search);const tid=params.get('t');if(location.pathname.endsWith('/index.html')){const q=tid?`?t=${encodeURIComponent(tid)}`:'';history.replaceState({},'',`./${q}`);}}
 normalizePublicUrl();
@@ -15,6 +15,7 @@ function selectPublicTournament(tid){
   const list=publicTournaments();
   if(!tid||!list.some(([id])=>String(id)===tid))return;
   state.tid=tid;
+  state.dateFilter='all'; state.dateFilterAuto=true;
   history.replaceState({},'',`./?t=${encodeURIComponent(tid)}`);
   renderTournamentPicker();
   closeTournamentPicker();
@@ -72,7 +73,7 @@ function team(id){return state.teams[id]||{};}
 function teamName(id){return team(id).name||id||'Por definir';}
 function teamLogo(id, cls = 'team-logo'){const u = team(id).logoUrl;if (u){return `<span class="${cls}"><img src="${esc(u)}" alt=""></span>`;}return `<span class="${cls} fallback-team-logo">⚽</span>`;}
 function tournamentLogo(t,cls='tournament-logo'){return t?.logoUrl?`<span class="${cls}"><img src="${esc(t.logoUrl)}" alt=""></span>`:`<span class="${cls} team-default-logo">⚽</span>`;}
-function renderAll(){if(!state.tid)return;const t=state.tournaments[state.tid]||{};$('.brand small').textContent=`${String(t.name||'PLATAFORMA MULTI-TORNEOS').toUpperCase()} · ${t.season||''}`;renderFeatured(t);renderMatches();renderStandings();renderStats();renderFormat(t);}
+function renderAll(){if(!state.tid)return;const t=state.tournaments[state.tid]||{};$('.brand small').textContent=`${String(t.name||'PLATAFORMA MULTI-TORNEOS').toUpperCase()} · ${t.season||''}`;renderFeatured(t);renderMatches();renderBetting();renderStandings();renderStats();renderFormat(t);}
 function liveMinute(m){
   if(!m || String(m.status||'').toLowerCase()!=='en juego') return null;
   const base=Math.max(0,Number(m.liveStartMinute??m.initialMinute??0));
@@ -139,9 +140,11 @@ function renderDateFilters(rows){
   const dates=[]; const seen=new Set();
   rows.forEach(m=>{const k=dateKey(m);if(!seen.has(k)){seen.add(k);dates.push([k,dateName(m)]);}});
   const wrap=$('#dateFilters'); if(!wrap)return;
-  if(state.dateFilter!=='all'&&state.dateFilter!=='__byes__'&&!seen.has(state.dateFilter))state.dateFilter='all';
+  const latest=dates.slice().sort((a,b)=>{const na=(String(a[1]).match(/\d+/)||['0'])[0],nb=(String(b[1]).match(/\d+/)||['0'])[0];return Number(nb)-Number(na)||String(b[0]).localeCompare(String(a[0]));})[0]?.[0] || dates[0]?.[0] || 'all';
+  if(state.dateFilterAuto && latest) state.dateFilter=latest;
+  if(state.dateFilter!=='all'&&state.dateFilter!=='__byes__'&&!seen.has(state.dateFilter))state.dateFilter=latest||'all';
   wrap.innerHTML=`<button class="date-filter ${state.dateFilter==='all'?'active':''}" data-date="all">TODAS</button>${dates.map(([k,n])=>`<button class="date-filter ${state.dateFilter===k?'active':''}" data-date="${esc(k)}">${esc(n)}</button>`).join('')}<button class="date-filter bye-tab ${state.dateFilter==='__byes__'?'active':''}" data-date="__byes__">💤 EQUIPOS LIBRES</button>`;
-  wrap.querySelectorAll('.date-filter').forEach(b=>b.addEventListener('click',()=>{state.dateFilter=b.dataset.date;renderMatches();}));
+  wrap.querySelectorAll('.date-filter').forEach(b=>b.addEventListener('click',()=>{state.dateFilter=b.dataset.date;state.dateFilterAuto=false;renderMatches();}));
 }
 function byeTeamsForRows(rows){
   const byDate=new Map();
@@ -156,6 +159,73 @@ function renderByeInfo(rows){
  if(!all.length){box.innerHTML='<div class="bye-info-head"><span>💤</span><div><b>Equipos libres</b><small>No hay equipos libres registrados.</small></div></div>';box.hidden=false;return;}
  box.hidden=false;
  box.innerHTML=`<div class="bye-info-head"><span>💤</span><div><b>Equipos libres</b><small>Descansos registrados por fecha</small></div></div><div class="bye-info-list">${all.map(x=>`<div class="bye-date"><strong>${esc(x.label)}</strong><div class="bye-names">${x.free.map(f=>`<div>${esc(f.name)} · Grupo ${esc(f.group)}</div>`).join('')}</div></div>`).join('')}</div>`;
+}
+function bettingMatches(){
+  return Object.entries(state.matches||{}).map(([id,m])=>({id,...m})).filter(m=>{
+    const st=String(m.status||'programado').toLowerCase();
+    return st!=='finalizado' && m.local && m.visitor && state.teams[m.local] && state.teams[m.visitor];
+  }).sort((a,b)=>{
+    const ra=Number(a.roundNumber||0),rb=Number(b.roundNumber||0);
+    if(ra!==rb)return ra-rb;
+    const da=String(a.dateValue||'9999-99-99'),db=String(b.dateValue||'9999-99-99');
+    return da.localeCompare(db)||String(a.time||'').localeCompare(String(b.time||''));
+  });
+}
+function renderBetting(){
+  const matchSelect=$('#betMatch'), teamSelect=$('#betTeam');
+  if(!matchSelect||!teamSelect)return;
+  const previousMatch=matchSelect.value, previousTeam=teamSelect.value;
+  const rows=bettingMatches();
+  matchSelect.innerHTML='<option value="">Selecciona un partido...</option>'+rows.map(m=>{
+    const st=String(m.status||'programado').toLowerCase();
+    const status=st==='en juego'?' · EN JUEGO':st==='descanso'?' · DESCANSO':'';
+    return `<option value="${esc(m.id)}">${esc(teamName(m.local))} vs ${esc(teamName(m.visitor))} · ${esc(dateName(m))}${status}</option>`;
+  }).join('');
+  if(rows.some(m=>m.id===previousMatch))matchSelect.value=previousMatch;
+  updateBetTeams(previousTeam);
+}
+function updateBetTeams(preferred=''){
+  const match=state.matches?.[$('#betMatch')?.value];
+  const select=$('#betTeam'); if(!select)return;
+  if(!match){select.innerHTML='<option value="">Primero selecciona un partido</option>';select.disabled=true;updateBetSummary();return;}
+  select.disabled=false;
+  select.innerHTML=`<option value="">Selecciona el equipo...</option><option value="${esc(match.local)}">${esc(teamName(match.local))} (Local)</option><option value="${esc(match.visitor)}">${esc(teamName(match.visitor))} (Visitante)</option>`;
+  if(preferred===match.local||preferred===match.visitor)select.value=preferred;
+  updateBetSummary();
+}
+function updateBetSummary(){
+  const box=$('#betSummary'); if(!box)return;
+  const match=state.matches?.[$('#betMatch')?.value];
+  const teamId=$('#betTeam')?.value;
+  const amount=$('#betAmount')?.value;
+  const opponent=$('#betOpponent')?.value.trim();
+  if(!match||!teamId){box.textContent='Selecciona un partido y un equipo para ver el resumen.';return;}
+  box.innerHTML=`<span>⚽</span><div><b>${esc($('#betName')?.value.trim()||'Tú')} le va $${esc(amount||'0')} a ${esc(teamName(teamId))}</b><small>Partido: ${esc(teamName(match.local))} vs ${esc(teamName(match.visitor))}${opponent?` · Con ${esc(opponent)}`:''}</small></div>`;
+}
+async function submitPublicBet(e){
+  e.preventDefault();
+  const form=e.currentTarget,msg=$('#publicBetMsg'),match=state.matches?.[$('#betMatch')?.value],teamId=$('#betTeam')?.value;
+  const amount=Number($('#betAmount')?.value);
+  const bettor=($('#betName')?.value||'').trim(), opponent=($('#betOpponent')?.value||'').trim(), phone=($('#betPhone')?.value||'').trim();
+  if(!match||!teamId){if(msg)msg.textContent='Selecciona un partido y el equipo al que le vas.';return;}
+  if(String(match.status||'').toLowerCase()==='finalizado'){if(msg)msg.textContent='Ese partido ya terminó y no acepta nuevas apuestas.';renderBetting();return;}
+  if(!Number.isFinite(amount)||amount<=0){if(msg)msg.textContent='Ingresa un monto válido mayor a $0.';return;}
+  if(!opponent){if(msg)msg.textContent='Indica con quién va la apuesta.';return;}
+  const token=(globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`).replace(/[^a-zA-Z0-9-]/g,'');
+  const id=`apuesta-${token}`;
+  const data={id,token,tournamentId:state.tid,matchId:$('#betMatch').value,localId:match.local,visitorId:match.visitor,localName:teamName(match.local),visitorName:teamName(match.visitor),teamId,teamName:teamName(teamId),amount:Number(amount.toFixed(2)),bettor:bettor||'Sin nombre',opponent,phone,status:'pendiente',source:'public',createdAt:new Date().toISOString()};
+  const btn=form.querySelector('button[type="submit"]'); if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+  try{
+    await set(ref(db,`apuestas/${state.tid}/${id}`),data);
+    const who=bettor||'Yo';
+    const betUrl=new URL(`apuesta.html?t=${encodeURIComponent(state.tid)}&id=${encodeURIComponent(id)}`, location.href).href;
+    const text=`Hola ${opponent}, te propongo esta apuesta de $${data.amount.toFixed(2)} para el partido ${teamName(match.local)} vs ${teamName(match.visitor)}.\n\n${who} le va a ${data.teamName}.\n\nRevisa y acepta aquí: ${betUrl}`;
+    const wa=`https://wa.me/?text=${encodeURIComponent(text)}`;
+    form.reset(); $('#betTeam').innerHTML='<option value="">Primero selecciona un partido</option>';$('#betTeam').disabled=true;updateBetSummary();
+    if(msg)msg.textContent='✅ Apuesta registrada correctamente.';
+    const share=$('#betWhatsapp'); if(share){share.hidden=false;share.innerHTML=`<div><b>¿Quieres compartir la apuesta por WhatsApp?</b><small>El mensaje incluye el enlace privado para que ${esc(opponent)} pueda aceptar o rechazar.</small><div class="bet-share-link"><input readonly value="${esc(betUrl)}" aria-label="Enlace de la apuesta"><button type="button" class="btn" id="copyBetLink">📋 Copiar enlace</button></div></div><a class="btn primary" href="${esc(wa)}" target="_blank" rel="noopener">💬 Compartir por WhatsApp</a>`; const copy=$('#copyBetLink'); copy?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(betUrl);copy.textContent='✅ Enlace copiado';}catch{copy.textContent='Copia el enlace de arriba';}});}
+  }catch(err){console.error(err);if(msg)msg.textContent='No se pudo registrar la apuesta. Intenta nuevamente.';}
+  finally{if(btn){btn.disabled=false;btn.textContent='⚽ Registrar apuesta';}}
 }
 function renderMatches(){
   const rows=Object.entries(state.matches).map(([id,m])=>({id,...m})).sort((a,b)=>{
@@ -320,3 +390,7 @@ async function submitPublicRegistration(e){
 }
 
 $('#publicRegistrationForm')?.addEventListener('submit',submitPublicRegistration);
+$('#publicBetForm')?.addEventListener('submit',submitPublicBet);
+$('#betMatch')?.addEventListener('change',()=>updateBetTeams());
+$('#betTeam')?.addEventListener('change',updateBetSummary);
+['betAmount','betOpponent','betName'].forEach(id=>$('#'+id)?.addEventListener('input',updateBetSummary));

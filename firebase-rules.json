@@ -54,6 +54,17 @@
       },
       ".read": true
     },
+    "apuestas": {
+      "$tid": {
+        ".read": "auth != null && (root.child('globalAdmins').child(auth.uid).val() == true || root.child('tournaments').child($tid).child('ownerUid').val() == auth.uid || root.child('tournamentAdmins').child($tid).child(auth.uid).exists())",
+        "$betId": {
+          ".write": "(!data.exists() && newData.child('tournamentId').val() == $tid && newData.child('source').val() == 'public' && newData.child('status').val() == 'pendiente' && newData.child('matchId').exists() && root.child('partidos').child($tid).child(newData.child('matchId').val()).exists() && root.child('partidos').child($tid).child(newData.child('matchId').val()).child('status').val() != 'finalizado' && newData.child('teamId').exists() && (newData.child('teamId').val() == root.child('partidos').child($tid).child(newData.child('matchId').val()).child('local').val() || newData.child('teamId').val() == root.child('partidos').child($tid).child(newData.child('matchId').val()).child('visitor').val()) && newData.child('amount').isNumber() && newData.child('amount').val() > 0 && newData.child('opponent').val() != '') || (data.exists() && data.child('status').val() == 'pendiente' && newData.child('tournamentId').val() == $tid && (newData.child('status').val() == 'aceptada' || newData.child('status').val() == 'rechazada') && newData.child('respondedAt').exists()) || (data.exists() && !newData.exists() && auth != null && root.child('globalAdmins').child(auth.uid).val() == true)",
+          ".validate": "(!data.exists() && newData.child('tournamentId').val() == $tid && newData.child('source').val() == 'public' && newData.child('status').val() == 'pendiente' && newData.child('matchId').exists() && root.child('partidos').child($tid).child(newData.child('matchId').val()).exists() && root.child('partidos').child($tid).child(newData.child('matchId').val()).child('status').val() != 'finalizado' && newData.child('teamId').exists() && (newData.child('teamId').val() == root.child('partidos').child($tid).child(newData.child('matchId').val()).child('local').val() || newData.child('teamId').val() == root.child('partidos').child($tid).child(newData.child('matchId').val()).child('visitor').val()) && newData.child('amount').isNumber() && newData.child('amount').val() > 0 && newData.child('opponent').val() != '' || (data.exists() && data.child('status').val() == 'pendiente' && newData.child('tournamentId').val() == $tid && (newData.child('status').val() == 'aceptada' || newData.child('status').val() == 'rechazada') && newData.child('respondedAt').exists())",
+          ".read": true
+        }
+      },
+      ".read": false
+    },
     "paymentConfig": {
       "public": {
         ".read": true,

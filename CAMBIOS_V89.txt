@@ -1,0 +1,7 @@
+V89 - Resultado de apuestas y acceso desde administración
+
+- Apuesta aceptada: el enlace calcula y muestra automáticamente quién ganó cuando el partido finaliza.
+- Si el marcador termina empatado: muestra "Nadie es el ganador".
+- Antes de finalizar: muestra que el resultado está pendiente.
+- Administración: nueva acción 👁 Ver que abre apuesta.html en una pestaña nueva incluso después del partido.
+- El resultado se calcula a partir del partido oficial; no se agrega escritura adicional a Firebase.
