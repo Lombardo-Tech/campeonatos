@@ -433,3 +433,122 @@ html::-webkit-scrollbar-thumb:hover,.admin-page::-webkit-scrollbar-thumb:hover{b
 .bye-info .bye-names{display:grid;gap:5px;color:#c5d5e4;text-align:left;line-height:1.45}
 .bye-info .bye-names>div{padding:2px 0}
 @media(max-width:700px){.bye-info .bye-date{grid-template-columns:1fr;gap:6px}.bye-info .bye-names{text-align:left}}
+
+
+/* V75 — ficha pública de equipos y plantilla */
+.team-click{width:100%;display:flex;align-items:center;gap:9px;border:0!important;background:transparent!important;color:inherit!important;padding:0!important;margin:0!important;text-align:left;cursor:pointer;font:inherit;appearance:none;-webkit-appearance:none;box-shadow:none!important;outline:none}.team-click::-moz-focus-inner{border:0;padding:0}.team-click:active,.team-click:hover{background:transparent!important;box-shadow:none!important}.team-click>b{font:inherit;color:inherit}.team-click>span{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:20px;height:25px;margin-left:auto;color:var(--accent);font-size:19px;line-height:1;opacity:.8;background:transparent!important;border:0!important;box-shadow:none!important}.team-click:focus-visible{outline:2px solid var(--accent)!important;outline-offset:2px;border-radius:8px}
+.team-click>b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.team-click:hover>b{color:var(--accent)}
+.team-detail-box{position:relative;width:min(920px,100%);max-height:min(92vh,940px);overflow:auto;background:linear-gradient(180deg,#0d2134 0,#071522 100%);border:1px solid #29445d;border-radius:28px;box-shadow:0 28px 90px rgba(0,0,0,.52);padding:26px;z-index:1;scrollbar-width:thin;scrollbar-color:var(--accent) rgba(255,255,255,.045)}
+.team-detail-box::-webkit-scrollbar{width:5px}.team-detail-box::-webkit-scrollbar-track{background:rgba(255,255,255,.035)}.team-detail-box::-webkit-scrollbar-thumb{background:var(--accent);border-radius:999px}
+.team-detail-head{display:flex;align-items:center;gap:18px;padding-right:45px}.team-detail-brand{width:92px;height:92px;border-radius:22px;background:#091827;border:1px solid var(--line);display:grid;place-items:center;flex:0 0 auto;overflow:hidden}.team-detail-logo{width:78px;height:78px;display:grid;place-items:center;font-size:34px}.team-detail-logo img{width:100%;height:100%;object-fit:contain}.team-detail-head h2{margin:5px 0 4px;font-size:31px;letter-spacing:-.04em}.team-detail-head p{margin:0;color:var(--muted);font-size:11px}
+.team-stat-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:7px;margin:22px 0}.team-stat-grid>div{padding:12px 7px;text-align:center;border:1px solid var(--line);border-radius:12px;background:rgba(4,14,25,.55)}.team-stat-grid b{display:block;font-size:19px;color:#e8f1f8}.team-stat-grid span{display:block;color:var(--muted);font-size:8px;font-weight:900;letter-spacing:.08em;margin-top:3px}
+.team-roster-section{border-top:1px solid var(--line);padding-top:20px}.team-roster-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.team-player-card{position:relative;display:grid;grid-template-columns:64px 34px 1fr;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(135deg,rgba(10,28,44,.92),rgba(7,19,32,.9));overflow:hidden}.team-player-photo{width:58px;height:58px;border-radius:14px;background:#12283a;border:1px solid rgba(157,247,45,.12);display:grid;place-items:center;overflow:hidden}.team-player-photo img{width:100%;height:100%;object-fit:cover}.team-player-avatar-fallback{font-size:22px}.team-player-number{width:30px;height:30px;border-radius:9px;background:rgba(157,247,45,.1);color:var(--accent);display:grid;place-items:center;font-weight:1000;font-size:11px}.team-player-main{min-width:0}.team-player-main b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.team-player-main span{display:block;color:#9db0c1;font-size:9px;margin-top:3px}.team-player-main small{display:block;color:#71889a;font-size:8px;margin-top:6px}.team-roster-empty{padding:35px 20px;border:1px dashed var(--line);border-radius:16px;text-align:center;color:var(--muted)}.team-roster-empty span{display:block;font-size:30px;margin-bottom:8px}.team-roster-empty b{display:block;color:#d4e2ed;font-size:13px}.team-roster-empty small{display:block;margin-top:4px;font-size:10px}
+.detail-team-link{display:block;margin:0 auto;border:0;background:transparent;color:#edf5fb;font:inherit;font-weight:1000;font-size:18px;line-height:1.1;cursor:pointer}.detail-team-link:hover{color:var(--accent)}.detail-team-link:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:5px}
+.checkbox-field{display:flex!important;align-items:center;gap:8px!important;align-content:center}.checkbox-field input{width:auto!important;margin:0}
+@media(max-width:760px){.team-stat-grid{grid-template-columns:repeat(4,1fr)}.team-roster-grid{grid-template-columns:1fr}.team-detail-head h2{font-size:25px}.team-detail-brand{width:76px;height:76px}.team-detail-logo{width:62px;height:62px}}
+
+/* V78 — corrección definitiva de la fila Equipo: logo, nombre y flecha en una sola línea */
+.standings-card td:nth-child(2) .team-click{
+  width:100%;
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  justify-content:flex-start;
+  gap:9px;
+  text-align:left;
+  min-width:0;
+}
+.standings-card td:nth-child(2) .team-click > .team-logo{
+  display:inline-grid;
+  flex:0 0 28px;
+  width:28px;
+  height:28px;
+  margin:0;
+}
+.standings-card td:nth-child(2) .team-click > b{
+  display:block;
+  flex:1 1 auto;
+  min-width:0;
+  text-align:left;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.standings-card td:nth-child(2) .team-click > span:last-child{
+  display:inline-flex;
+  flex:0 0 20px;
+  width:20px;
+  height:25px;
+  margin-left:auto;
+  align-items:center;
+  justify-content:center;
+}
+
+/* V79 — logo por defecto: conservar el mismo marco redondeado de los logos de equipo */
+.standings-card td:nth-child(2) .team-click > .team-logo.tiny{
+  width:28px;
+  height:28px;
+  flex:0 0 28px;
+  border-radius:7px;
+  background:rgba(255,255,255,.045);
+  border:1px solid var(--line);
+  display:inline-grid;
+  place-items:center;
+  overflow:hidden;
+  font-size:13px;
+  line-height:1;
+}
+.standings-card td:nth-child(2) .team-click > .team-logo.tiny img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+
+.team-default-logo{display:inline-grid!important;place-items:center!important;background:rgba(255,255,255,.045)!important;border:1px solid var(--line)!important;border-radius:7px!important;overflow:hidden!important;box-sizing:border-box!important;color:var(--text)!important;line-height:1!important;}
+.team-logo.tiny.team-default-logo{width:28px!important;height:28px!important;flex:0 0 28px!important;border-radius:7px!important;font-size:13px!important;}
+/* TABLA DE POSICIONES PUBLICA
+   Logo por defecto cuando el equipo no tiene imagen */
+.standings-card td:nth-child(2) .team-click > .team-logo {
+  display: inline-grid !important;
+  place-items: center !important;
+
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+
+  flex: 0 0 28px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  border: 1px solid var(--line) !important;
+  border-radius: 7px !important;
+
+  background: rgba(255,255,255,.045) !important;
+
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+
+  font-size: 13px !important;
+  line-height: 1 !important;
+}
+
+/* El balón por defecto */
+.standings-card td:nth-child(2) .team-click > .fallback-team-logo {
+  display: inline-grid !important;
+  place-items: center !important;
+
+  border: 1px solid var(--line) !important;
+  border-radius: 7px !important;
+
+  background: rgba(255,255,255,.045) !important;
+}
+
+/* Logos reales */
+.standings-card td:nth-child(2) .team-click > .team-logo img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  display: block !important;
+}
