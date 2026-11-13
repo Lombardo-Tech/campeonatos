@@ -1,0 +1,19 @@
+VERSION 92 - FASE FINAL, IDA/VUELTA Y PENALES
+
+- Se agrega una seccion publica de llaves de eliminacion directa.
+- Los partidos se agrupan por Identificador de eliminatoria (seriesId).
+- Cada llave muestra ida, vuelta y marcador global.
+- En ida/vuelta, la clasificacion espera ambos partidos finalizados.
+- Si el global queda empatado, se puede registrar la tanda desde Resultado en administracion.
+- Administracion guarda resultado de penales y equipo clasificado; si no se selecciona, se determina por el resultado de la tanda.
+- El formulario permite asignar identificador comun a ida y vuelta y marcar cada tramo.
+- Para respetar los cruces definidos por el organizador, registrar manualmente cada partido con el mismo identificador en ida y vuelta.
+- Se actualiza la cache del service worker.
+
+INSTRUCCIONES
+1. Seleccionar la ronda en Fase.
+2. Usar el mismo identificador unico en los dos partidos (ej. octavos-grapi-artesanos).
+3. Marcar Ida y Vuelta.
+4. Invertir local y visitante en la vuelta.
+5. Si el global termina empatado, abrir Resultado del partido de vuelta y registrar los penales.
+6. La seccion publica mostrara el global y el clasificado.
