@@ -1,0 +1,9 @@
+VERSION 93
+
+CALENDARIO PUBLICO
+- Se reemplazaron los botones de TODAS y cada FECHA por un selector desplegable de fases.
+- El selector muestra las fases configuradas para el torneo (Fase de grupos, Ronda de 8, Ronda de 4, Ronda de 2, Final, etc.).
+- Al elegir Fase de grupos se muestran los partidos de todas las fechas de grupos, sin una fila larga de botones.
+- Se eliminó Equipos libres del selector público; el calendario muestra únicamente las fases del torneo.
+- La fase de grupos queda seleccionada por defecto cuando está configurada.
+- Se mantienen las funciones de fase final, llaves, ida y vuelta y gestión de penales incluidas en la versión 92.
