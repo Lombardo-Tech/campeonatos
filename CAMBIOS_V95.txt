@@ -1,0 +1,5 @@
+VERSION 95
+- El calendario público inicia sin mostrar partidos hasta seleccionar una fase.
+- El selector de fases usa un estilo oscuro tipo Select2, con foco y opciones mejoradas.
+- Se reemplazó el estado infinito "Cargando fases..." por opciones reales al recibir datos; si no existen fases, se informa y deshabilita el selector.
+- El filtrado reconoce fases por ID o por nombre normalizado para evitar desajustes entre configuración y partidos.
