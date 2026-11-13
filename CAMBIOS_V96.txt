@@ -1,0 +1,6 @@
+VERSION 96
+- Se reemplazó el selector nativo de fase por un desplegable personalizado estilo Select2, con buscador y menú desplegable oscuro.
+- El calendario permanece vacío al cargar; muestra una indicación hasta que el usuario elige una fase.
+- Al elegir una fase, solo se muestran partidos de esa fase, comparando el identificador de fase y, como respaldo, su nombre normalizado.
+- Se soporta la configuración de fases guardada como arreglo u objeto.
+- Se corrigió la caché del service worker: nueva versión de caché y estrategia de red prioritaria para HTML, CSS y JavaScript, evitando que el navegador siga cargando los archivos anteriores.
