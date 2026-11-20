@@ -187,27 +187,47 @@ const $$=s=>[...document.querySelectorAll(s)];
 function selectResetDate(key,label){const sel=$('#resetDateSelect');if(!sel)return;sel.value=key;const current=$('#resetDateCurrent');if(current)current.innerHTML=`<b>${esc(label)}</b><small>Fecha seleccionada para reiniciar</small>`;$$('#resetDateOptions .reset-date-option').forEach(o=>o.classList.toggle('selected',o.dataset.value===key));const search=$('#resetDateSearch');if(search)search.value='';closeResetDatePicker();}
 function renderResetDateOptions(){const sel=$('#resetDateSelect'),box=$('#resetDateOptions');if(!sel||!box)return;const groups=new Map();Object.entries(S.matches).forEach(([id,m])=>{const key=dateKeyForMatch(m);if(!key||key==='::')return;const stage=stageById(m.stageId);const label=`${stage?.name?stage.name+' · ':''}${dateLabelForMatch(m)}`;if(!groups.has(key))groups.set(key,{label,stageId:m.stageId||'',dateId:m.dateId||'',roundNumber:m.roundNumber||0,roundLabel:m.roundLabel||''});});const current=sel.value;const sorted=[...groups.entries()].sort((a,b)=>String(a[1].stageId).localeCompare(String(b[1].stageId))||Number(a[1].roundNumber||0)-Number(b[1].roundNumber||0)||a[1].label.localeCompare(b[1].label));sel.innerHTML='<option value="">Selecciona una fecha...</option>'+sorted.map(([key,x])=>`<option value="${esc(key)}">${esc(x.label)}</option>`).join('');box.innerHTML=sorted.map(([key,x])=>`<button type="button" class="reset-date-option ${key===current?'selected':''}" data-value="${esc(key)}" data-search="${esc(`${x.label} ${x.roundLabel||''} ${x.dateId||''}`).toLowerCase()}"><span class="reset-date-icon">📅</span><span><b>${esc(x.label)}</b><small>${esc(x.roundLabel||'Jornada programada')}</small></span><i>✓</i></button>`).join('')+'<div class="reset-date-no-results" id="resetDateNoResults">No se encontraron fechas.</div>';if(sorted.length){box.querySelectorAll('.reset-date-option').forEach(o=>o.addEventListener('click',()=>selectResetDate(o.dataset.value,o.querySelector('b')?.textContent||'Fecha seleccionada')));if(!current){const c=$('#resetDateCurrent');if(c)c.innerHTML='<b>Selecciona una fecha...</b><small>Elige la jornada que deseas reiniciar</small>';}}else{$('#resetDateNoResults')?.style.setProperty('display','block');}filterResetDateOptions();}
 async function resetSelectedDate(){if(!isAllowed())return msg('No tienes permisos para reiniciar resultados.');const sel=$('#resetDateSelect');const keySel=sel?.value||'';if(!keySel)return msg('Selecciona una fecha para reiniciar.');const matches=Object.entries(S.matches).filter(([,m])=>dateKeyForMatch(m)===keySel);if(!matches.length)return msg('No hay partidos en la fecha seleccionada.');const label=sel.options[sel.selectedIndex]?.textContent||'la fecha seleccionada';if(!confirm(`¿Reiniciar ${label}?\n\nSe eliminarán los marcadores y eventos de ${matches.length} partido(s) y todos volverán a PROGRAMADO 0 - 0.\n\nLa programación NO será eliminada.`))return;const writes={};matches.forEach(([id])=>{writes[`partidos/${S.tid}/${id}/status`]='programado';writes[`partidos/${S.tid}/${id}/homeScore`]=0;writes[`partidos/${S.tid}/${id}/awayScore`]=0;writes[`partidos/${S.tid}/${id}/liveStartedAt`]=null;writes[`partidos/${S.tid}/${id}/liveStartMinute`]=null;writes[`partidos/${S.tid}/${id}/livePeriod`]=null;writes[`partidos/${S.tid}/${id}/liveAddedTime`]=null;writes[`partidos/${S.tid}/${id}/periodStartedAt`]=null;writes[`partidos/${S.tid}/${id}/updatedAt`]=now();writes[`eventos/${S.tid}/${id}`]=null;});await update(ref(db),writes);msg(`${label}: resultados reiniciados correctamente.`);}
-function renderAdminByeInfo(){
-  const box=$('#adminByeInfo');if(!box)return;
-  if(S.dateFilter!=='__byes__'){box.hidden=true;box.innerHTML='';return;}
-  const matches=Object.values(S.matches||{});const byDate=new Map();
-  matches.forEach(m=>{const k=dateKeyForMatch(m);if(!k||k==='::')return;if(!byDate.has(k))byDate.set(k,{label:dateLabelForMatch(m),groups:new Set(),round:Number(m.roundNumber||0)});if(m.group)byDate.get(k).groups.add(String(m.group).toUpperCase());});
-  const out=[];
-  byDate.forEach((x,k)=>{x.groups.forEach(g=>{const ids=Object.entries(S.teams||{}).filter(([,t])=>String(t.group||'').toUpperCase()===g).map(([id])=>id);const played=new Set();matches.filter(m=>dateKeyForMatch(m)===k&&String(m.group||'').toUpperCase()===g).forEach(m=>{if(m.local)played.add(m.local);if(m.visitor)played.add(m.visitor);});const free=ids.filter(id=>!played.has(id));if(free.length)out.push({key:k,label:x.label,round:x.round,group:g,names:free.map(id=>S.teams[id]?.name||id)});});});
-  out.sort((a,b)=>b.round-a.round||String(a.label).localeCompare(String(b.label),'es')||a.group.localeCompare(b.group));
-  box.hidden=false;
-  box.innerHTML=out.length?`<div class="bye-info-head"><span>💤</span><div><b>Equipos libres</b><small>Descansos registrados por fecha</small></div></div><div class="bye-info-list">${out.map(x=>`<div class="bye-date"><strong>${esc(x.label)}</strong><div class="bye-names">${x.names.map(n=>`<div>${esc(n)} · Grupo ${esc(x.group)}</div>`).join('')}</div></div>`).join('')}</div>`:'<div class="bye-info-head"><span>💤</span><div><b>Equipos libres</b><small>No hay equipos libres registrados.</small></div></div>';
+function adminCalendarFilterKey(match, stage){
+  return isKnockoutStage(stage) ? 'stage:' + stage.id : dateKeyForMatch(match);
 }
+
 function renderAdminDateFilters(){
-  const box=$('#adminDateFilters');if(!box)return;
-  const groups=new Map();
-  Object.values(S.matches).forEach(m=>{const key=dateKeyForMatch(m);if(!key||key==='::')return;const stage=stageById(m.stageId);const label=dateLabelForMatch(m);const sort=Number(m.roundNumber||0);if(!groups.has(key))groups.set(key,{label,stageId:m.stageId||'',roundNumber:sort});});
-  const dates=[...groups.entries()].sort((a,b)=>String(a[1].stageId).localeCompare(String(b[1].stageId))||b[1].roundNumber-a[1].roundNumber||b[1].label.localeCompare(a[1].label));
-  const latest=dates.slice().sort((a,b)=>Number(b[1].roundNumber||0)-Number(a[1].roundNumber||0)||String(b[0]).localeCompare(String(a[0])))[0]?.[0] || dates[0]?.[0] || 'all';
-  if(S.dateFilterAuto && latest) S.dateFilter=latest;
-  if(S.dateFilter!=='all'&&S.dateFilter!=='__byes__'&&!groups.has(S.dateFilter))S.dateFilter=latest||'all';
-  box.innerHTML=`<button type="button" class="date-filter ${S.dateFilter==='all'?'active':''}" data-date="all">TODAS</button>${dates.map(([key,x])=>`<button type="button" class="date-filter ${S.dateFilter===key?'active':''}" data-date="${esc(key)}">${esc(x.label)}</button>`).join('')}<button type="button" class="date-filter bye-tab ${S.dateFilter==='__byes__'?'active':''}" data-date="__byes__">💤 EQUIPOS LIBRES</button>`;
-  box.querySelectorAll('.date-filter').forEach(b=>b.addEventListener('click',()=>{S.dateFilter=b.dataset.date;S.dateFilterAuto=false;renderMatches();}));
+  const box = $('#adminDateFilters');
+  if (!box) return;
+
+  const stagesById = new Map(stages().map(stage => [stage.id, stage]));
+  const rounds = new Map();
+  const dates = new Map();
+  for (const match of Object.values(S.matches)) {
+    const stage = stagesById.get(match.stageId);
+    const key = adminCalendarFilterKey(match, stage);
+    if (isKnockoutStage(stage)) {
+      const label = /^ronda de 8$/i.test(stage.name?.trim()) ? 'Octavos de final' : stage.name;
+      rounds.set(key, label);
+    } else if (key !== '::' && !dates.has(key)) {
+      const label = dateLabelForMatch(match);
+      const round = Number(match.roundNumber) || Number(label.match(/\d+/)?.[0] || 0);
+      dates.set(key, {label, round, stageId: match.stageId || ''});
+    }
+  }
+  const orderedRounds = [...stagesById.keys()].reverse()
+    .map(id => 'stage:' + id).filter(key => rounds.has(key)).map(key => [key, rounds.get(key)]);
+  const orderedDates = [...dates].sort(([, a], [, b]) => a.stageId.localeCompare(b.stageId)
+    || b.round - a.round || b.label.localeCompare(a.label, 'es', {numeric: true}));
+  const filters = [...orderedRounds, ...orderedDates.map(([key, date]) => [key, date.label])];
+  const latest = [...dates].sort(([, a], [, b]) => b.round - a.round)[0]?.[0] || filters[0]?.[0] || 'all';
+  if (S.dateFilterAuto || (S.dateFilter !== 'all' && !rounds.has(S.dateFilter) && !dates.has(S.dateFilter))) {
+    S.dateFilter = latest;
+  }
+  box.innerHTML = [['all', 'TODAS'], ...filters].map(([key, label]) =>
+    '<button type="button" class="date-filter' + (S.dateFilter === key ? ' active' : '')
+    + '" data-date="' + esc(key) + '">' + esc(label) + '</button>'
+  ).join('');
+  box.querySelectorAll('.date-filter').forEach(button => button.addEventListener('click', () => {
+    S.dateFilter = button.dataset.date;
+    S.dateFilterAuto = false;
+    renderMatches();
+  }));
 }
 
 function renderBets(){
@@ -263,13 +283,11 @@ async function handleBetTableClick(e){
 function renderMatches(){
   const box=$('#matchesTable');if(!box)return;
   renderAdminDateFilters();
-  renderAdminByeInfo();
-  const byeMode=S.dateFilter==='__byes__';
-  const tableCard=box.closest('.table-card');
-  if(byeMode){ if(tableCard)tableCard.hidden=true; box.innerHTML=''; return; }
-  if(tableCard)tableCard.hidden=false;
   let rows=Object.entries(S.matches).map(([id,m])=>({id,...m}));
-  if(S.dateFilter!=='all')rows=rows.filter(m=>dateKeyForMatch(m)===S.dateFilter);
+  if (S.dateFilter !== 'all') {
+    const stagesById = new Map(stages().map(stage => [stage.id, stage]));
+    rows = rows.filter(match => adminCalendarFilterKey(match, stagesById.get(match.stageId)) === S.dateFilter);
+  }
   rows.sort((a,b)=>String(a.stageId||'').localeCompare(String(b.stageId||''))||Number(b.roundNumber||0)-Number(a.roundNumber||0)||String(b.dateValue||'').localeCompare(String(a.dateValue||''))||String(a.time||'').localeCompare(String(b.time||'')));
   box.innerHTML=rows.map(m=>{const st=String(m.status||'programado').toLowerCase();const live=st==='en juego',rest=st==='descanso',fin=st==='finalizado';return `<tr class="${live?'row-live':fin?'row-finished':''}"><td>${esc(m.phase||m.stageId||'-')}</td><td>${esc(m.roundLabel||m.dateId||'-')}</td><td>${esc(timeLabel(m.time))}</td><td>${esc(S.teams[m.local]?.name||m.local||'Por definir')}</td><td>${esc(S.teams[m.visitor]?.name||m.visitor||'Por definir')}</td><td><b>${live||rest||fin?`${Number(m.homeScore||0)} - ${Number(m.awayScore||0)}`:'VS'}</b></td><td><span class="status-badge ${live?'live':fin?'finished':''}">${live?'● EN JUEGO':rest?'⏸ DESCANSO':fin?'● FINALIZADO':'PROGRAMADO'}</span></td><td><button class="small-btn edit-match" data-id="${esc(m.id)}">Editar</button> <button class="small-btn primary result-match" data-id="${esc(m.id)}">Resultado</button></td></tr>`;}).join('')||'<tr><td colspan="8">No hay partidos en esta fecha.</td></tr>';
   box.querySelectorAll('.edit-match').forEach(b=>b.addEventListener('click',()=>editMatch(b.dataset.id)));
