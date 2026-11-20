@@ -585,3 +585,65 @@ html::-webkit-scrollbar-thumb:hover,.admin-page::-webkit-scrollbar-thumb:hover{b
 @media(max-width:850px){.bet-admin-row td{padding:12px 10px}.bet-admin-match{min-width:220px}.bet-admin-bettor{min-width:150px}}
 
 .bet-admin-actions{white-space:nowrap;display:flex;gap:6px;align-items:center}.bet-admin-actions .small-btn{text-decoration:none}.bet-admin-result{display:block;margin-top:4px;font-size:.75rem;font-weight:700}.bet-admin-result.won{color:#16803c}.bet-admin-result.lost{color:#b42318}.bet-admin-result.draw{color:#8a5a00}.bet-admin-result.pending{color:#667085}.bet-admin-result.rejected{color:#b42318}.bet-accept-result.won{border-color:#86efac;background:#f0fdf4}.bet-accept-result.lost{border-color:#fecaca;background:#fef2f2}.bet-accept-result.draw{border-color:#fde68a;background:#fffbeb}.bet-accept-result.rejected{border-color:#fecaca;background:#fef2f2}.bet-accept-result strong{display:block}.bet-accept-result small{display:block;margin-top:6px}
+
+#partidos .phase-select-wrap select {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  padding: 9px 14px;
+  max-width: min(48vw, 280px);
+}
+#partidos [hidden] { display: none; }
+.knockout-ties {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  align-items: start;
+}
+.knockout-ties .empty { grid-column: 1 / -1; }
+.tie-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+  min-width: 0;
+}
+.tie-card header, .tie-card footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.tie-card header { margin-bottom: 8px; }
+.tie-card footer { padding-top: 12px; }
+.tie-card footer strong, .tie-winner { color: var(--accent); }
+.tie-team {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+.tie-team b { overflow-wrap: anywhere; }
+.tie-team strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+.tie-legs { display: grid; gap: 6px; margin-top: 12px; }
+.tie-leg {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 10px;
+  text-align: left;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 12px;
+}
+button.tie-leg { cursor: pointer; }
+button.tie-leg:hover { border-color: var(--accent); }
+.tie-leg span { justify-self: end; color: var(--muted); }
+.tie-leg strong { grid-column: 1 / -1; overflow-wrap: anywhere; }

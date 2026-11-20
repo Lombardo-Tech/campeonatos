@@ -1,15 +1,22 @@
 import { downloadMatchActPDF } from './acta.js';
+import { isKnockoutStage, knockoutTies } from './knockout.js';
 import { db } from './firebase.js';
 import { ref, onValue, set } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
 import { esc, timeLabel, dateLabel, normalize } from './common.js';
-const state={tournaments:{},tid:new URLSearchParams(location.search).get('t')||'',teams:{},matches:{},events:{},players:{},news:{},sponsors:{},venues:{},awards:{},unsub:[],dateFilter:'all',dateFilterAuto:true,eventsReady:false,seenEvents:new Set(),liveTimer:null,selectedMatchId:null,selectedTeamId:null};
+const state={tournaments:{},tid:new URLSearchParams(location.search).get('t')||'',teams:{},matches:{},events:{},players:{},news:{},sponsors:{},venues:{},awards:{},unsub:[],phaseId:'',phaseTournamentId:'',dateFilter:'all',dateFilterAuto:true,eventsReady:false,seenEvents:new Set(),liveTimer:null,selectedMatchId:null,selectedTeamId:null};
 
 function normalizePublicUrl(){const params=new URLSearchParams(location.search);const tid=params.get('t');if(location.pathname.endsWith('/index.html')){const q=tid?`?t=${encodeURIComponent(tid)}`:'';history.replaceState({},'',`./${q}`);}}
 normalizePublicUrl();
 const $=s=>document.querySelector(s);
-function publicTournaments(){return Object.entries(state.tournaments).filter(([,t])=>{if(!t||t.public===false||t.status==='archived')return false;/* Los torneos creados por organizadores solo son públicos después del pago. Los torneos legacy/global sin ownerUid conservan su publicación normal. */return t.ownerUid ? (t.status==='active'&&t.paymentStatus==='paid') : t.status==='active';}).sort((a,b)=>String(a[1].name||a[0]).localeCompare(String(b[1].name||b[0]),'es'));}
+$('#phaseSelector')?.addEventListener('change', event => {
+  state.phaseId = event.target.value;
+  state.dateFilter = 'all';
+  state.dateFilterAuto = true;
+  renderMatches();
+});
+function publicTournaments(){return Object.entries(state.tournaments).filter(([,t])=>{if(!t||t.public===false||t.status==='archived')return false;/* Los torneos creados por organizadores solo son públicos después del pago. Los torneos legacy/global sin ownerUid conservan su publicación normal. */return t.ownerUid ? (['active','finished'].includes(t.status)&&t.paymentStatus==='paid') : ['active','finished'].includes(t.status);}).sort((a,b)=>String(a[1].name||a[0]).localeCompare(String(b[1].name||b[0]),'es'));}
 onValue(ref(db,'tournaments'),snap=>{state.tournaments=snap.val()||{};renderCatalog();loadSelected();});
-function loadSelected(){state.eventsReady=false;state.seenEvents.clear();if(state.liveTimer){clearInterval(state.liveTimer);state.liveTimer=null;}state.unsub.forEach(fn=>{try{fn();}catch{}});state.unsub=[];const list=publicTournaments();if(!list.length){$('#featured').innerHTML='<div class="empty">Todavía no hay torneos publicados.</div>';$('#matchesGrid').innerHTML='';$('#standings').innerHTML='';$('#stats').innerHTML='';$('#scorers').innerHTML='';$('#discipline').innerHTML='';return;}const allowed=state.tid&&list.some(([id])=>id===state.tid);if(!allowed)state.tid=list[0][0];const t=state.tournaments[state.tid];renderTournamentPicker();document.title=`${t.name||'Torneo'} ${t.season||''}`.trim();state.unsub.push(onValue(ref(db,`equipos/${state.tid}`),s=>{state.teams=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`partidos/${state.tid}`),s=>{state.matches=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`jugadores/${state.tid}`),s=>{state.players=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`noticias/${state.tid}`),s=>{state.news=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`patrocinadores/${state.tid}`),s=>{state.sponsors=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`sedes/${state.tid}`),s=>{state.venues=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`premios/${state.tid}`),s=>{state.awards=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`eventos/${state.tid}`),s=>{const next=s.val()||{}; if(!state.eventsReady){state.events=next;state.eventsReady=true;Object.entries(next).forEach(([mid,evs])=>Object.keys(evs||{}).forEach(eid=>state.seenEvents.add(`${mid}/${eid}`)));renderAll();return;} state.events=next;renderAll();detectNewEvents(next); })); startLiveClock();}
+function loadSelected(){state.eventsReady=false;state.seenEvents.clear();if(state.liveTimer){clearInterval(state.liveTimer);state.liveTimer=null;}state.unsub.forEach(fn=>{try{fn();}catch{}});state.unsub=[];const list=publicTournaments();if(!list.length){$('#featured').innerHTML='<div class="empty">Todavía no hay torneos publicados.</div>';$('#matchesGrid').innerHTML='';$('#phaseSelector').replaceChildren();$('#phaseSelector').disabled=true;$('#dateFilters').replaceChildren();$('#byeInfo').replaceChildren();$('#standings').innerHTML='';$('#stats').innerHTML='';$('#scorers').innerHTML='';$('#discipline').innerHTML='';return;}const allowed=state.tid&&list.some(([id])=>id===state.tid);if(!allowed)state.tid=list[0][0];const t=state.tournaments[state.tid];renderTournamentPicker();document.title=`${t.name||'Torneo'} ${t.season||''}`.trim();state.unsub.push(onValue(ref(db,`equipos/${state.tid}`),s=>{state.teams=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`partidos/${state.tid}`),s=>{state.matches=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`jugadores/${state.tid}`),s=>{state.players=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`noticias/${state.tid}`),s=>{state.news=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`patrocinadores/${state.tid}`),s=>{state.sponsors=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`sedes/${state.tid}`),s=>{state.venues=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`premios/${state.tid}`),s=>{state.awards=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`eventos/${state.tid}`),s=>{const next=s.val()||{}; if(!state.eventsReady){state.events=next;state.eventsReady=true;Object.entries(next).forEach(([mid,evs])=>Object.keys(evs||{}).forEach(eid=>state.seenEvents.add(`${mid}/${eid}`)));renderAll();return;} state.events=next;renderAll();detectNewEvents(next); })); startLiveClock();}
 function selectPublicTournament(tid){
   tid=String(tid||'');
   const list=publicTournaments();
@@ -227,8 +234,65 @@ async function submitPublicBet(e){
   }catch(err){console.error(err);if(msg)msg.textContent='No se pudo registrar la apuesta. Intenta nuevamente.';}
   finally{if(btn){btn.disabled=false;btn.textContent='⚽ Registrar apuesta';}}
 }
+function selectedPublicStage(){
+  const stages = state.tournaments[state.tid]?.format?.stages || [];
+  const options = stages.length ? stages : [{id:'', name:'Fase de grupos', type:'round_robin'}];
+  if (state.phaseTournamentId !== state.tid || !options.some(stage => stage.id === state.phaseId)) {
+    state.phaseTournamentId = state.tid;
+    state.phaseId = (options.find(stage => stage.type === 'round_robin') || options[0]).id;
+    state.dateFilter = 'all';
+    state.dateFilterAuto = true;
+  }
+  const select = $('#phaseSelector');
+  select.innerHTML = options.map(stage => '<option value="' + esc(stage.id) + '">' + esc(stage.name) + '</option>').join('');
+  select.disabled = false;
+  select.value = state.phaseId;
+  return options.find(stage => stage.id === state.phaseId);
+}
+
+function renderKnockout(stage, rows){
+  const ties = knockoutTies(stage, rows);
+  return ties.length ? ties.map(tie => {
+    const title = tie.twoLegs ? 'Ida y vuelta' : 'Partido único';
+    const legs = tie.twoLegs ? ['Ida', 'Vuelta'] : ['Partido'];
+    const slots = [];
+    tie.games.forEach(game => { const index = Number(game.leg) - 1; if (legs[index] && !slots[index]) slots[index] = game; });
+    tie.games.forEach(game => {
+      if (!slots.includes(game)) {
+        const index = legs.findIndex((_, index) => !slots[index]);
+        if (index !== -1) slots[index] = game;
+      }
+    });
+    const teamRows = tie.teams.map((team, index) =>
+      '<div class="tie-team' + (team && team === tie.winner ? ' tie-winner' : '') + '">' +
+      teamLogo(team, 'team-logo tiny') + '<b>' + esc(teamName(team)) + '</b>' +
+      (tie.twoLegs ? '<strong>' + (tie.played ? tie.aggregate[index] : '—') + '</strong>' : '') + '</div>'
+    ).join('');
+    const gameRows = legs.map((label, index) => {
+      const game = slots[index];
+      if (!game) return '<div class="tie-leg"><b>' + label + '</b><span>Por registrar</span></div>';
+      const status = String(game.status || 'programado').toLowerCase();
+      const result = status === 'programado' ? 'vs' : Number(game.homeScore || 0) + ' – ' + Number(game.awayScore || 0);
+      const time = [game.dateValue && dateLabel(game.dateValue), game.time && timeLabel(game.time)].filter(Boolean).join(' · ');
+      const detail = { finalizado: 'Finalizado', programado: time || 'Programado', 'en juego': 'En juego', descanso: 'Descanso' };
+      return '<button type="button" class="tie-leg" data-match-id="' + esc(game.id) + '">' +
+        '<b>' + label + '</b><span>' + esc(detail[status] || status) + '</span>' +
+        '<strong>' + esc(teamName(game.local)) + ' ' + result + ' ' + esc(teamName(game.visitor)) + '</strong></button>';
+    }).join('');
+    const summary = tie.winner ? '<strong>Clasifica ' + esc(teamName(tie.winner)) + '</strong>' +
+      (tie.penalties ? '<span>Penales ' + tie.penalties.map(esc).join(' – ') + '</span>' : '') :
+      '<span>' + (tie.complete ? 'Empate · pendiente de penales' : 'Llave por definir') + '</span>';
+    return '<article class="tie-card"><header><span>' + title + '</span>' + (tie.twoLegs ? '<span>Global</span>' : '') +
+      '</header>' + teamRows + '<div class="tie-legs">' + gameRows + '</div><footer>' + summary + '</footer></article>';
+  }).join('') : '<div class="empty">Aún no hay partidos para esta fase.</div>';
+}
+
 function renderMatches(){
-  const rows=Object.entries(state.matches).map(([id,m])=>({id,...m})).sort((a,b)=>{
+  const stage = selectedPublicStage();
+  const rows=Object.entries(state.matches).map(([id,m])=>({id,...m})).filter(match => !stage.id
+    || match.stageId === stage.id
+    || (!match.stageId && (match.phase === stage.name || (!match.phase && stage.type === 'round_robin' && stage === firstGroupStage()))))
+    .sort((a,b)=>{
     // En TODAS las fechas se muestran de la jornada más reciente a la más antigua.
     // Ej.: Fecha 3 → Fecha 2 → Fecha 1. Dentro de cada fecha se conserva el orden cronológico.
     const ra=Number(a.roundNumber||0), rb=Number(b.roundNumber||0);
@@ -239,6 +303,16 @@ function renderMatches(){
     const da=String(a.dateValue||'9999-99-99'), db=String(b.dateValue||'9999-99-99');
     return da.localeCompare(db)||String(a.time||'').localeCompare(String(b.time||''));
   });
+  const knockout = isKnockoutStage(stage);
+  $('#matchesGrid').classList.toggle('knockout-ties', knockout);
+  $('#dateFilters').hidden = knockout;
+  $('#byeInfo').hidden = knockout;
+  if (knockout) {
+    $('#matchesGrid').innerHTML = renderKnockout(stage, rows);
+    bindMatchInteractions();
+    if (state.selectedMatchId && state.matches[state.selectedMatchId]) refreshOpenMatchDetail();
+    return;
+  }
   renderDateFilters(rows);
   renderByeInfo(rows);
   const byeMode=state.dateFilter==='__byes__';
@@ -290,7 +364,7 @@ function bindMatchInteractions(){
   const grid=$('#matchesGrid'); if(grid&&!grid.dataset.bound){
     grid.dataset.bound='1';
     grid.addEventListener('click',e=>{const card=e.target.closest('[data-match-id]');if(card)renderMatchDetail(card.dataset.matchId);});
-    grid.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('[data-match-id]')){e.preventDefault();renderMatchDetail(e.target.closest('[data-match-id]').dataset.matchId);}});
+    grid.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('[data-match-id]')&&!e.target.closest('button')){e.preventDefault();renderMatchDetail(e.target.closest('[data-match-id]').dataset.matchId);}});
   }
   const modal=$('#matchDetailModal'); if(modal&&!modal.dataset.bound){
     modal.dataset.bound='1';
