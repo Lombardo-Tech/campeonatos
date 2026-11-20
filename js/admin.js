@@ -117,7 +117,7 @@ function canViewTournament(tid){return S.global||S.allowedTids.has(tid)||S.tourn
 function visibleTournamentEntries(){return Object.entries(S.tournaments).filter(([id])=>canViewTournament(id));}
 function selectFirst(){const ids=visibleTournamentEntries().map(([id])=>id);if(ids.length)selectTournament(ids[0]);else newTournament();}
 function clearSubs(){S.stageUnsub.forEach(fn=>{try{fn();}catch{}});S.stageUnsub=[];S.moduleUnsub.forEach(fn=>{try{fn();}catch{}});S.moduleUnsub=[];}
-function selectTournament(tid){if(!canViewTournament(tid))return msg('Este torneo no está asignado a tu usuario.');clearSubs();S.tid=tid;S.isNew=false;setGlobalPayments(false);const t=currentTournament();if(!t)return;
+function selectTournament(tid){if(!canViewTournament(tid))return msg('Este torneo no está asignado a tu usuario.');clearSubs();if(S.tid!==tid){S.dateFilter='all';S.dateFilterAuto=true;}S.tid=tid;S.isNew=false;setGlobalPayments(false);const t=currentTournament();if(!t)return;
   if(S.global){onValue(ref(db,`tournamentAdmins/${tid}`),s=>{S.admins=s.val()||{};renderAdmins();});}
   else{get(ref(db,`tournamentAdmins/${tid}/${S.user.uid}`)).then(s=>{if(s.exists())S.admins[S.user.uid]=s.val();}).catch(()=>{});}
   onValue(ref(db,`equipos/${tid}`),s=>{S.teams=s.val()||{};renderTeams();refreshMatchTeams();renderDashboard();renderPlayerTeamOptions();renderActMatches();initSelect2('#tournamentWorkspace');});onValue(ref(db,`partidos/${tid}`),async s=>{S.matches=s.val()||{};const first=stages()[0];if(first){const fixes={};Object.entries(S.matches).forEach(([id,m])=>{if(!m.stageId){fixes[`partidos/${tid}/${id}/stageId`]=first.id;fixes[`partidos/${tid}/${id}/phase`]=first.name;}});if(Object.keys(fixes).length&&isAllowed())await update(ref(db),fixes);}renderMatches();renderDashboard();renderStageOverview();});onValue(ref(db,`eventos/${tid}`),s=>{S.events=s.val()||{};});
@@ -197,6 +197,7 @@ function renderAdminDateFilters(){
 
   const stagesById = new Map(stages().map(stage => [stage.id, stage]));
   const rounds = new Map();
+  const startedRounds = new Set();
   const dates = new Map();
   for (const match of Object.values(S.matches)) {
     const stage = stagesById.get(match.stageId);
@@ -204,6 +205,7 @@ function renderAdminDateFilters(){
     if (isKnockoutStage(stage)) {
       const label = /^ronda de 8$/i.test(stage.name?.trim()) ? 'Octavos de final' : stage.name;
       rounds.set(key, label);
+      if (['en juego', 'descanso', 'finalizado'].includes(String(match.status).toLowerCase())) startedRounds.add(key);
     } else if (key !== '::' && !dates.has(key)) {
       const label = dateLabelForMatch(match);
       const round = Number(match.roundNumber) || Number(label.match(/\d+/)?.[0] || 0);
@@ -215,7 +217,8 @@ function renderAdminDateFilters(){
   const orderedDates = [...dates].sort(([, a], [, b]) => a.stageId.localeCompare(b.stageId)
     || b.round - a.round || b.label.localeCompare(a.label, 'es', {numeric: true}));
   const filters = [...orderedRounds, ...orderedDates.map(([key, date]) => [key, date.label])];
-  const latest = [...dates].sort(([, a], [, b]) => b.round - a.round)[0]?.[0] || filters[0]?.[0] || 'all';
+  const currentRound = orderedRounds.find(([key]) => startedRounds.has(key))?.[0];
+  const latest = currentRound || [...dates].sort(([, a], [, b]) => b.round - a.round)[0]?.[0] || filters[0]?.[0] || 'all';
   if (S.dateFilterAuto || (S.dateFilter !== 'all' && !rounds.has(S.dateFilter) && !dates.has(S.dateFilter))) {
     S.dateFilter = latest;
   }
