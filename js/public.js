@@ -3,24 +3,29 @@ import { isKnockoutStage, knockoutTies } from './knockout.js';
 import { db } from './firebase.js';
 import { ref, onValue, set } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
 import { esc, timeLabel, dateLabel, normalize } from './common.js';
-const state={tournaments:{},tid:new URLSearchParams(location.search).get('t')||'',teams:{},matches:{},events:{},players:{},news:{},sponsors:{},venues:{},awards:{},unsub:[],phaseId:'',phaseTournamentId:'',dateFilter:'all',dateFilterAuto:true,eventsReady:false,seenEvents:new Set(),liveTimer:null,selectedMatchId:null,selectedTeamId:null};
+const state={tournaments:{},tid:new URLSearchParams(location.search).get('t')||'',teams:{},matches:{},events:{},players:{},news:{},sponsors:{},venues:{},awards:{},unsub:[],phaseId:'',manualPhaseTournamentId:'',dateFilter:'all',dateFilterAuto:true,eventsReady:false,seenEvents:new Set(),liveTimer:null,selectedMatchId:null,selectedTeamId:null};
 
 function normalizePublicUrl(){const params=new URLSearchParams(location.search);const tid=params.get('t');if(location.pathname.endsWith('/index.html')){const q=tid?`?t=${encodeURIComponent(tid)}`:'';history.replaceState({},'',`./${q}`);}}
 normalizePublicUrl();
 const $=s=>document.querySelector(s);
 $('#phaseSelector')?.addEventListener('change', event => {
   state.phaseId = event.target.value;
+  state.manualPhaseTournamentId = state.tid;
   state.dateFilter = 'all';
   state.dateFilterAuto = true;
   renderMatches();
 });
 function publicTournaments(){return Object.entries(state.tournaments).filter(([,t])=>{if(!t||t.public===false||t.status==='archived')return false;/* Los torneos creados por organizadores solo son públicos después del pago. Los torneos legacy/global sin ownerUid conservan su publicación normal. */return t.ownerUid ? (['active','finished'].includes(t.status)&&t.paymentStatus==='paid') : ['active','finished'].includes(t.status);}).sort((a,b)=>String(a[1].name||a[0]).localeCompare(String(b[1].name||b[0]),'es'));}
 onValue(ref(db,'tournaments'),snap=>{state.tournaments=snap.val()||{};renderCatalog();loadSelected();});
-function loadSelected(){state.eventsReady=false;state.seenEvents.clear();if(state.liveTimer){clearInterval(state.liveTimer);state.liveTimer=null;}state.unsub.forEach(fn=>{try{fn();}catch{}});state.unsub=[];const list=publicTournaments();if(!list.length){$('#featured').innerHTML='<div class="empty">Todavía no hay torneos publicados.</div>';$('#matchesGrid').innerHTML='';$('#phaseSelector').replaceChildren();$('#phaseSelector').disabled=true;$('#dateFilters').replaceChildren();$('#byeInfo').replaceChildren();$('#standings').innerHTML='';$('#stats').innerHTML='';$('#scorers').innerHTML='';$('#discipline').innerHTML='';return;}const allowed=state.tid&&list.some(([id])=>id===state.tid);if(!allowed)state.tid=list[0][0];const t=state.tournaments[state.tid];renderTournamentPicker();document.title=`${t.name||'Torneo'} ${t.season||''}`.trim();state.unsub.push(onValue(ref(db,`equipos/${state.tid}`),s=>{state.teams=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`partidos/${state.tid}`),s=>{state.matches=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`jugadores/${state.tid}`),s=>{state.players=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`noticias/${state.tid}`),s=>{state.news=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`patrocinadores/${state.tid}`),s=>{state.sponsors=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`sedes/${state.tid}`),s=>{state.venues=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`premios/${state.tid}`),s=>{state.awards=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`eventos/${state.tid}`),s=>{const next=s.val()||{}; if(!state.eventsReady){state.events=next;state.eventsReady=true;Object.entries(next).forEach(([mid,evs])=>Object.keys(evs||{}).forEach(eid=>state.seenEvents.add(`${mid}/${eid}`)));renderAll();return;} state.events=next;renderAll();detectNewEvents(next); })); startLiveClock();}
+function loadSelected(){state.eventsReady=false;state.seenEvents.clear();if(state.liveTimer){clearInterval(state.liveTimer);state.liveTimer=null;}state.unsub.forEach(fn=>{try{fn();}catch{}});state.unsub=[];const list=publicTournaments();if(!list.length){$('#featured').innerHTML='<div class="empty">Todavía no hay torneos publicados.</div>';$('#matchesGrid').innerHTML='';$('#phaseSelector').replaceChildren();$('#phaseSelector').disabled=true;$('#dateFilters').replaceChildren();$('#standings').innerHTML='';$('#stats').innerHTML='';$('#scorers').innerHTML='';$('#discipline').innerHTML='';return;}const allowed=state.tid&&list.some(([id])=>id===state.tid);if(!allowed){state.tid=list[0][0];state.manualPhaseTournamentId='';state.matches={};}const t=state.tournaments[state.tid];renderTournamentPicker();document.title=`${t.name||'Torneo'} ${t.season||''}`.trim();state.unsub.push(onValue(ref(db,`equipos/${state.tid}`),s=>{state.teams=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`partidos/${state.tid}`),s=>{state.matches=s.val()||{};renderAll();}));state.unsub.push(onValue(ref(db,`jugadores/${state.tid}`),s=>{state.players=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`noticias/${state.tid}`),s=>{state.news=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`patrocinadores/${state.tid}`),s=>{state.sponsors=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`sedes/${state.tid}`),s=>{state.venues=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`premios/${state.tid}`),s=>{state.awards=s.val()||{};renderProPublic();}));state.unsub.push(onValue(ref(db,`eventos/${state.tid}`),s=>{const next=s.val()||{}; if(!state.eventsReady){state.events=next;state.eventsReady=true;Object.entries(next).forEach(([mid,evs])=>Object.keys(evs||{}).forEach(eid=>state.seenEvents.add(`${mid}/${eid}`)));renderAll();return;} state.events=next;renderAll();detectNewEvents(next); })); startLiveClock();}
 function selectPublicTournament(tid){
   tid=String(tid||'');
   const list=publicTournaments();
   if(!tid||!list.some(([id])=>String(id)===tid))return;
+  if (state.tid !== tid) {
+    state.manualPhaseTournamentId = '';
+    state.matches = {};
+  }
   state.tid=tid;
   state.dateFilter='all'; state.dateFilterAuto=true;
   history.replaceState({},'',`./?t=${encodeURIComponent(tid)}`);
@@ -149,23 +154,9 @@ function renderDateFilters(rows){
   const wrap=$('#dateFilters'); if(!wrap)return;
   const latest=dates.slice().sort((a,b)=>{const na=(String(a[1]).match(/\d+/)||['0'])[0],nb=(String(b[1]).match(/\d+/)||['0'])[0];return Number(nb)-Number(na)||String(b[0]).localeCompare(String(a[0]));})[0]?.[0] || dates[0]?.[0] || 'all';
   if(state.dateFilterAuto && latest) state.dateFilter=latest;
-  if(state.dateFilter!=='all'&&state.dateFilter!=='__byes__'&&!seen.has(state.dateFilter))state.dateFilter=latest||'all';
-  wrap.innerHTML=`<button class="date-filter ${state.dateFilter==='all'?'active':''}" data-date="all">TODAS</button>${dates.map(([k,n])=>`<button class="date-filter ${state.dateFilter===k?'active':''}" data-date="${esc(k)}">${esc(n)}</button>`).join('')}<button class="date-filter bye-tab ${state.dateFilter==='__byes__'?'active':''}" data-date="__byes__">💤 EQUIPOS LIBRES</button>`;
+  if(state.dateFilter!=='all'&&!seen.has(state.dateFilter))state.dateFilter=latest||'all';
+  wrap.innerHTML=`<button class="date-filter ${state.dateFilter==='all'?'active':''}" data-date="all">TODAS</button>${dates.map(([k,n])=>`<button class="date-filter ${state.dateFilter===k?'active':''}" data-date="${esc(k)}">${esc(n)}</button>`).join('')}`;
   wrap.querySelectorAll('.date-filter').forEach(b=>b.addEventListener('click',()=>{state.dateFilter=b.dataset.date;state.dateFilterAuto=false;renderMatches();}));
-}
-function byeTeamsForRows(rows){
-  const byDate=new Map();
-  rows.forEach(m=>{const k=dateKey(m);if(!byDate.has(k))byDate.set(k,{label:dateName(m),round:Number(m.roundNumber||0),groups:new Set()});if(m.group)byDate.get(k).groups.add(String(m.group).toUpperCase());});
-  const allTeams=Object.entries(state.teams||{});
-  return [...byDate.entries()].map(([key,x])=>{const free=[];x.groups.forEach(g=>{const ids=allTeams.filter(([,t])=>String(t.group||'').toUpperCase()===g).map(([id])=>id);const played=new Set();rows.filter(m=>dateKey(m)===key&&String(m.group||'').toUpperCase()===g).forEach(m=>{if(m.local)played.add(m.local);if(m.visitor)played.add(m.visitor);});ids.filter(id=>!played.has(id)).forEach(id=>free.push({id,name:teamName(id),group:g}));});return {key,...x,free};}).filter(x=>x.free.length);
-}
-function renderByeInfo(rows){
- const box=$('#byeInfo');if(!box)return;
- if(state.dateFilter!=='__byes__'){box.innerHTML='';box.hidden=true;return;}
- const all=byeTeamsForRows(rows);
- if(!all.length){box.innerHTML='<div class="bye-info-head"><span>💤</span><div><b>Equipos libres</b><small>No hay equipos libres registrados.</small></div></div>';box.hidden=false;return;}
- box.hidden=false;
- box.innerHTML=`<div class="bye-info-head"><span>💤</span><div><b>Equipos libres</b><small>Descansos registrados por fecha</small></div></div><div class="bye-info-list">${all.map(x=>`<div class="bye-date"><strong>${esc(x.label)}</strong><div class="bye-names">${x.free.map(f=>`<div>${esc(f.name)} · Grupo ${esc(f.group)}</div>`).join('')}</div></div>`).join('')}</div>`;
 }
 function bettingMatches(){
   return Object.entries(state.matches||{}).map(([id,m])=>({id,...m})).filter(m=>{
@@ -234,14 +225,24 @@ async function submitPublicBet(e){
   }catch(err){console.error(err);if(msg)msg.textContent='No se pudo registrar la apuesta. Intenta nuevamente.';}
   finally{if(btn){btn.disabled=false;btn.textContent='⚽ Registrar apuesta';}}
 }
+function matchIsInStage(match, stage){
+  return !stage.id || match.stageId === stage.id
+    || (!match.stageId && (match.phase === stage.name
+      || (!match.phase && stage.type === 'round_robin' && stage === firstGroupStage())));
+}
+
 function selectedPublicStage(){
   const stages = state.tournaments[state.tid]?.format?.stages || [];
   const options = stages.length ? stages : [{id:'', name:'Fase de grupos', type:'round_robin'}];
-  if (state.phaseTournamentId !== state.tid || !options.some(stage => stage.id === state.phaseId)) {
-    state.phaseTournamentId = state.tid;
-    state.phaseId = (options.find(stage => stage.type === 'round_robin') || options[0]).id;
-    state.dateFilter = 'all';
-    state.dateFilterAuto = true;
+  if (state.manualPhaseTournamentId !== state.tid || !options.some(stage => stage.id === state.phaseId)) {
+    const started = Object.values(state.matches).filter(match =>
+      ['finalizado', 'en juego', 'descanso'].includes(String(match.status).toLowerCase()));
+    const current = options.findLast(stage => started.some(match => matchIsInStage(match, stage))) || options[0];
+    if (state.phaseId !== current.id) {
+      state.phaseId = current.id;
+      state.dateFilter = 'all';
+      state.dateFilterAuto = true;
+    }
   }
   const select = $('#phaseSelector');
   select.innerHTML = options.map(stage => '<option value="' + esc(stage.id) + '">' + esc(stage.name) + '</option>').join('');
@@ -289,9 +290,7 @@ function renderKnockout(stage, rows){
 
 function renderMatches(){
   const stage = selectedPublicStage();
-  const rows=Object.entries(state.matches).map(([id,m])=>({id,...m})).filter(match => !stage.id
-    || match.stageId === stage.id
-    || (!match.stageId && (match.phase === stage.name || (!match.phase && stage.type === 'round_robin' && stage === firstGroupStage()))))
+  const rows=Object.entries(state.matches).map(([id,m])=>({id,...m})).filter(match => matchIsInStage(match, stage))
     .sort((a,b)=>{
     // En TODAS las fechas se muestran de la jornada más reciente a la más antigua.
     // Ej.: Fecha 3 → Fecha 2 → Fecha 1. Dentro de cada fecha se conserva el orden cronológico.
@@ -306,7 +305,6 @@ function renderMatches(){
   const knockout = isKnockoutStage(stage);
   $('#matchesGrid').classList.toggle('knockout-ties', knockout);
   $('#dateFilters').hidden = knockout;
-  $('#byeInfo').hidden = knockout;
   if (knockout) {
     $('#matchesGrid').innerHTML = renderKnockout(stage, rows);
     bindMatchInteractions();
@@ -314,11 +312,7 @@ function renderMatches(){
     return;
   }
   renderDateFilters(rows);
-  renderByeInfo(rows);
-  const byeMode=state.dateFilter==='__byes__';
-  const filtered=state.dateFilter==='all'?rows:(byeMode?[]:rows.filter(m=>dateKey(m)===state.dateFilter));
-  const phase=rows.length?phaseLabel(rows[0]):'FASE DE GRUPOS'; if($('#phaseBadge'))$('#phaseBadge').textContent=phase;
-  if(byeMode){ $('#matchesGrid').innerHTML=''; bindMatchInteractions(); if(state.selectedMatchId && state.matches[state.selectedMatchId]) refreshOpenMatchDetail(); return; }
+  const filtered=state.dateFilter==='all'?rows:rows.filter(m=>dateKey(m)===state.dateFilter);
   $('#matchesGrid').innerHTML=filtered.length?filtered.map(m=>{
     const st=String(m.status||'programado').toLowerCase();
     const dateText=m.dateValue?dateLabel(m.dateValue):'';
